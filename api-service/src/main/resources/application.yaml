@@ -1,0 +1,5 @@
+spring:
+  application:
+    name: api-service
+github:
+  token: ${GITHUB_TOKEN}
