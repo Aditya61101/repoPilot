@@ -26,7 +26,7 @@ analyze issues, and automate code fixes.
 - Clone the repo and run the Java API service located in `api-service`.
 
 ```powershell
-git clone https://github.com/YOUR_USERNAME/devassistant.git
+git clone https://github.com/Aditya61101/devassistant.git
 cd devassistant/api-service
 ```
 
