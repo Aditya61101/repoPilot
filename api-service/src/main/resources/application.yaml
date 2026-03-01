@@ -2,4 +2,5 @@ spring:
   application:
     name: api-service
 github:
+  base-url: https://api.github.com
   token: ${GITHUB_TOKEN}
