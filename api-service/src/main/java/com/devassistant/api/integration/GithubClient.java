@@ -93,4 +93,9 @@ public class GithubClient {
 
         return new String(decodeBytes);
     }
+
+    public  Object getIssue(String owner, String repo, int issueNumber) {
+        String url = baseUrl + "/repos/" + owner + "/" + repo + "/issues/" + issueNumber;
+        return makeGetRequest(url);
+    }
 }

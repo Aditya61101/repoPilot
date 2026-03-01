@@ -39,4 +39,13 @@ public class RepoController {
     public String getFileContent(@RequestParam String owner, @RequestParam String repo, @RequestParam String path) {
         return repoService.getFileContent(owner, repo, path);
     }
+
+    @PostMapping("/analyze-issue")
+    public Map<String,Object> analyzeIssue(@RequestBody Map<String, Object> request) {
+        String owner = (String) request.get("owner");
+        String repo = (String) request.get("repo");
+        Integer issueNumber = (Integer) request.get("issueNumber");
+
+        return repoService.analyzeIssue(owner, repo, issueNumber);
+    }
 }
