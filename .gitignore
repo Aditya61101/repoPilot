@@ -199,3 +199,11 @@ README.html
 *.iml
 .idea
 .exercism
+
+# python specific
+__pycache__/
+.venv
+.env
+
+# frontend specific
+node_modules/

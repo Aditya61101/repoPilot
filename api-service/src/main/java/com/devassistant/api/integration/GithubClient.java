@@ -94,8 +94,18 @@ public class GithubClient {
         return new String(decodeBytes);
     }
 
-    public  Object getIssue(String owner, String repo, int issueNumber) {
+    public Object getIssue(String owner, String repo, int issueNumber) {
         String url = baseUrl + "/repos/" + owner + "/" + repo + "/issues/" + issueNumber;
         return makeGetRequest(url);
+    }
+
+    public String getLatestCommitSha(String owner, String repo) {
+        String url = baseUrl + "/repos/" + owner + "/" + repo + "/commits";
+        List<Map<String, Object>> commits = (List<Map<String, Object>>) makeGetRequest(url);
+        if(commits.isEmpty()) return "";
+        Map<String, Object> latestCommit = commits.getLast();
+        String latestSha = (String) latestCommit.get("sha");
+        System.out.println("latest commit of given repo: " + latestSha);
+        return latestSha;
     }
 }
