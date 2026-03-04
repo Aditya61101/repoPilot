@@ -10,6 +10,6 @@ import java.util.concurrent.Executors;
 public class AsyncConfig {
     @Bean
     public ExecutorService githubExecutor() {
-        return Executors.newFixedThreadPool(5);
+        return Executors.newFixedThreadPool(10);
     }
 }

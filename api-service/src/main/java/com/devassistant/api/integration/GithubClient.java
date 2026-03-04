@@ -81,6 +81,12 @@ public class GithubClient {
         return extractRepoTree(treeResponse);
     }
 
+    public List<Map<String, String>> getRepoTreeBySHA(String owner, String repo, String sha) {
+        String treeUrl = baseUrl + "/repos/" + owner + "/" + repo + "/git/trees/" + sha + "?recursive=1";
+        Map<String, Object> treeResponse = (Map<String,Object>) makeGetRequest(treeUrl);
+        return extractRepoTree(treeResponse);
+    }
+
     public String getFileContent(String owner, String repo, String path) {
         String url = baseUrl + "/repos/" + owner + "/" + repo + "/contents/" + path;
         Map<String, Object> response = (Map<String, Object>) makeGetRequest(url);
@@ -103,7 +109,8 @@ public class GithubClient {
         String url = baseUrl + "/repos/" + owner + "/" + repo + "/commits";
         List<Map<String, Object>> commits = (List<Map<String, Object>>) makeGetRequest(url);
         if(commits.isEmpty()) return "";
-        Map<String, Object> latestCommit = commits.getLast();
+        // commits are in descending order
+        Map<String, Object> latestCommit = commits.getFirst();
         String latestSha = (String) latestCommit.get("sha");
         System.out.println("latest commit of given repo: " + latestSha);
         return latestSha;

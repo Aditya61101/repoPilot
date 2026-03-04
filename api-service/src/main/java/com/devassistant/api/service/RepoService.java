@@ -25,57 +25,33 @@ public class RepoService {
         this.aiClient = aiClient;
     }
 
-    /*private List<String> getRelevantFiles(String issue, List<String>files) {
-        Set<String> keywords = Arrays.stream(issue.toLowerCase().split("\\W+"))
-                .filter(w -> w.length() > 2)
-                .collect(Collectors.toSet());
+    private List<Map<String, String>> getAllFileData(String owner, String repo, String sha) {
+        List<Map<String, String>> tree = githubClient.getRepoTreeBySHA(owner, repo, sha);
 
-        Map<String, Integer> scoreMap = new HashMap<>();
-
-        for(String file:files) {
-            String lowerFile = file.toLowerCase();
-            // Step 2: filter only code files
-            if (!(lowerFile.endsWith(".java") || lowerFile.endsWith(".js") ||
-                    lowerFile.endsWith(".ts") || lowerFile.endsWith(".py") ||
-                    lowerFile.endsWith(".jsx"))) {
-                continue;
-            }
-            int score = 0;
-            for(String keyword:keywords) {
-                if(lowerFile.contains(keyword)){
-                    score+=2;
-                }
-                if (lowerFile.contains("src") || lowerFile.contains("service") || lowerFile.contains("controller")) {
-                    score += 1;
-                }
-                if (score > 0) {
-                    scoreMap.put(file, score);
-                }
-            }
-
-        }
-        return scoreMap.entrySet().stream()
-                .sorted((a,b) -> b.getValue()-a.getValue())
-                .map(Map.Entry::getKey)
-                .limit(5)
+        List<String> paths = tree.stream()
+                .filter(n -> "file".equals(n.get("type")))
+                .map(n -> n.get("path"))
                 .toList();
-    }*/
 
-    private List<Map<String, String>> getAllFileData(String owner, String repo) {
-        List<Map<String, String>> tree = githubClient.getRepoTree(owner, repo);
-        List<Map<String, String>> allFiles = new ArrayList<>();
-        for(Map<String, String> node:tree) {
-            if(node.get("type").equals("file")) {
-                String path = node.get("path");
-                // need to call this in a parallel way
-                String content = githubClient.getFileContent(owner, repo, path);
-                Map<String, String> fileData = new HashMap<>();
-                fileData.put("path", path);
-                fileData.put("content", content);
-                allFiles.add(fileData);
-            }
-        }
-        return allFiles;
+        List<CompletableFuture<Map<String, String>>> futures = paths.stream()
+                .map(path -> CompletableFuture.supplyAsync(() -> {
+                    try {
+                        String content = githubClient.getFileContent(owner, repo, path);
+                        Map<String, String> fileData = new HashMap<>();
+                        fileData.put("path", path);
+                        fileData.put("content", content);
+                        return fileData;
+                    } catch (Exception e) {
+                        System.out.println("failed to fetch: "+ path);
+                        System.out.println("exception occurred: "+ e.getMessage());
+                        return null;
+                    }
+                }, githubExecutor))
+                .toList();
+        return futures.stream()
+                .map(CompletableFuture::join)
+                .filter(Objects::nonNull)
+                .toList();
     }
 
     public Object getRepos(String owner) {
@@ -103,7 +79,7 @@ public class RepoService {
         // step 3: if it doesn't exist(need_indexing=True) then we fetch file paths and content and send it to ai-service for indexing
         if(needsIndex) {
             System.out.println("indexing repo...");
-            List<Map<String, String>> allFiles = getAllFileData(owner, repo);
+            List<Map<String, String>> allFiles = getAllFileData(owner, repo, sha);
             aiClient.indexRepo(repoKey, sha, allFiles);
         }
         // step 4: after indexing, we again call ai-service for analysis
@@ -119,43 +95,6 @@ public class RepoService {
                 "issue", issue,
                 "analysis", analysis
         );
-        /* List<Map<String, String>> tree = githubClient.getRepoTree(owner, repo);
-
-        List<String> files = new ArrayList<>();
-        for(Map<String, String> node:tree) {
-            if(node.get("type").equals("file")) files.add(node.get("path"));
-        }
-
-        // later we will call ai-service for RAG based retrieval
-        List<String> relevantFilePaths = getRelevantFiles(issueText, files);
-        // System.out.println("relevant file paths size is: " + relevantFilePaths.size());
-
-        List<CompletableFuture<String>> futures = relevantFilePaths.stream()
-                .map(path -> CompletableFuture.supplyAsync(() -> {
-                    try {
-                        return githubClient.getFileContent(owner, repo, path);
-                    } catch (Exception e) {
-                        System.out.println("Exception for: " + path + " " + e);
-                        return  "";
-                        // throw new RuntimeException(e);
-                    }
-                }, githubExecutor))
-                .toList();
-        List<String> relevantFileContents = futures.stream()
-                .map(f -> {
-                    try {
-                        return f.join();
-                    } catch (Exception e) {
-                        return "";
-                    }
-                })
-                .toList();
-
-        Map<String, Object> response = new HashMap<>();
-        response.put("issue", issue);
-        response.put("fileContents", relevantFileContents);
-
-        return response;*/
     }
 
 }
