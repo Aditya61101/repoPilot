@@ -29,19 +29,21 @@ public class AIClient {
         return (Boolean) response.get("needs_index");
     }
 
-    public void indexRepo(String repoKey, String sha, List<Map<String, String>> files) {
+    public Object indexRepo(String repoKey, String sha, List<Map<String, String>> files) {
         Map<String, Object> body = Map.of(
                 "repo_key", repoKey,
                 "commit_sha", sha,
                 "files", files
         );
 
-        webClient.post()
+        Object res;
+        res = webClient.post()
                 .uri("/index")
                 .bodyValue(body)
                 .retrieve()
-                .bodyToMono(Void.class)
+                .bodyToMono(Object.class)
                 .block();
+        return res;
     }
 
     public String analyze(String repoKey, String issue) {
@@ -57,6 +59,6 @@ public class AIClient {
                 .bodyToMono(Map.class)
                 .block();
 
-        return (String) response.get("analysis");
+        return (String) response.get("retrieved_context");
     }
 }
