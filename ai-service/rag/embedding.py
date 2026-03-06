@@ -1,4 +1,9 @@
+import os
+# from transformers import logging
 from sentence_transformers import SentenceTransformer
+
+os.environ['HF_HUB_OFFLINE'] = "1"
+os.environ['TRANSFORMERS_OFFLINE'] = "1"
 
 model = SentenceTransformer("BAAI/bge-small-en", device='cpu')
 

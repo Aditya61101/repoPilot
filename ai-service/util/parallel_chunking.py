@@ -1,10 +1,19 @@
 from concurrent.futures import ThreadPoolExecutor
 from rag.chunking import chunk_file
+from util.language_detection import detect_language
+from util.regex import extract_imports
 
 def process_file(file_obj):
     path = file_obj['path']
     content = file_obj['content']
-    return chunk_file(path, content)
+    lang = detect_language(path)
+    imports = extract_imports(content, lang)
+    
+    file_chunks = chunk_file(path, content)
+    for c in file_chunks:
+        c['imports'] = imports
+
+    return file_chunks
 
 def parallel_chunk(files):
     chunks = []

@@ -23,7 +23,7 @@ def ensure_indexed(req:EnsureIndexedRequest):
 def index_repo(req:IndexRequest):
     chunks = parallel_chunk(req.files)
 
-    texts = [f"FILE: {c['path']}\n\n{c['content']}" for c in chunks]
+    texts = [f"FILE: {c['path']}\nLANGUAGE: {c['language']}\nSYMBOL: {c.get('symbol')}\n\n{c['content']}" for c in chunks]
     
     embeddings = embed_texts(texts)
 
@@ -58,7 +58,6 @@ def analyze(req:AnalyzeRequest):
 
     print("relevant chunks: ", grouped_chunks)
     # for now we return context, later we will feed this context to LLM
-    
     return {
         "retrieved_context": grouped_chunks
     }

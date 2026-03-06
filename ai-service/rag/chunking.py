@@ -1,38 +1,11 @@
-import os
-import re
 from langchain_text_splitters import RecursiveCharacterTextSplitter
+from util.regex import extract_symbol
+from util.language_detection import detect_language
 
 splitter = RecursiveCharacterTextSplitter(
     chunk_size=800,
     chunk_overlap=120
 )
-SYMBOL_PATTERN = re.compile(
-    r"(?:function|class)\s+(\w+)|(\w+)\s*\([^)]*\)\s*{"
-)
-def extract_generic_symbol(text):
-    match = SYMBOL_PATTERN.search(text)
-
-    if not match:
-        return None
-    return match.group(1) or match.group(2)
-
-def detect_language(path):
-    ext = os.path.splitext(path)[1].lower()
-
-    mapping = {
-        ".py": "python",
-        ".js": "javascript",
-        ".ts": "javascript",
-        ".java": "java",
-        ".go": "go",
-        ".cpp": "cpp",
-        ".c": "cpp",
-        ".rs": "rust",
-        ".html": "html",
-        ".css": "css"
-    }
-
-    return mapping.get(ext, "generic")
 
 def chunk_python(path, content):
     import ast
@@ -92,7 +65,7 @@ def split_code_blocks(path, content, lang):
                         "chunk_id": f"{path}:{start_line}-{end_line}",
                         "path": path,
                         "language": lang,
-                        "symbol": extract_generic_symbol(chunk_text), 
+                        "symbol": extract_symbol(chunk_text, lang), 
                         "start_line": start_line,
                         "end_line": end_line,
                         "content": chunk_text
@@ -113,7 +86,7 @@ def chunk_text_fallback(path, content, lang):
             "chunk_id": f"{path}:{start_line}-{end_line}",
             "path": path,
             "language": lang,
-            "symbol": None,
+            "symbol": extract_symbol(chunk, lang),
             "start_line":start_line,
             "end_line": end_line,
             "content": chunk
@@ -125,13 +98,13 @@ def chunk_file(path, content):
     
     lang = detect_language(path)
     # smaller content need no chunking
-    if len(content) < 1500:
+    if len(content) < 400:
         lines = content.splitlines()
         return  [{
             "chunk_id": f"{path}:1-{len(lines)}",
             "path": path, 
             "language": lang,
-            "symbol": None,
+            "symbol": extract_symbol(content, lang),
             "start_line":1,
             "end_line": len(lines),
             "content": content

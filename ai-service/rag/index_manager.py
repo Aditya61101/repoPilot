@@ -16,6 +16,23 @@ def load_metadata(repo):
     
     return metadata
 
+# in memory caching, may use redis
+index_cache = {}
+def get_index(repo):
+    if repo in index_cache:
+        print("loading index from memory cache")
+        return index_cache[repo]
+    index, chunks, metadata, file_chunks = load_index(repo=repo)
+
+    index_cache[repo] = {
+        "index": index,
+        "chunks": chunks,
+        "metadata": metadata,
+        "file_chunks": file_chunks
+    }
+    print("loading index from disk")
+    return index_cache[repo]
+
 def load_index(repo):
     print('inside load_index')
     try:
@@ -27,7 +44,17 @@ def load_index(repo):
         
         metadata = load_metadata(repo)
         
-        return index, chunks, metadata
+        from collections import defaultdict
+
+        # grouping file by path
+        file_chunks = defaultdict(list)
+        for c in chunks:
+            file_chunks[c['path']].append(c)
+        # sorting each file content by start_line
+        for c_in_file in file_chunks.values():
+            c_in_file.sort(key=lambda x: x['start_line'])
+
+        return index, chunks, metadata, file_chunks
     except Exception as e:
         print('loading existing index failed', e)
         return None

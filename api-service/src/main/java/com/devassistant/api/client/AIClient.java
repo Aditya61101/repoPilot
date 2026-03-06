@@ -46,7 +46,7 @@ public class AIClient {
         return res;
     }
 
-    public String analyze(String repoKey, String issue) {
+    public Object analyze(String repoKey, String issue) {
         Map<String, String> body = Map.of(
                 "repo_key", repoKey,
                 "issue", issue
@@ -59,6 +59,6 @@ public class AIClient {
                 .bodyToMono(Map.class)
                 .block();
 
-        return (String) response.get("retrieved_context");
+        return response.get("retrieved_context");
     }
 }

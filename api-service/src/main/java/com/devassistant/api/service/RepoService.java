@@ -46,10 +46,7 @@ public class RepoService {
             String ext = lower.substring(dot);
             return !BLOCKED_EXTENSIONS.contains(ext);
         }
-        if(lower.endsWith("package-lock.json") || lower.endsWith("yarn.lock") || lower.endsWith("pnpm-lock.yaml")) {
-            return false;
-        }
-        return true;
+        return !lower.endsWith("package-lock.json") && !lower.endsWith("yarn.lock") && !lower.endsWith("pnpm-lock.yaml");
     }
 
     private List<Map<String, String>> getAllFileData(String owner, String repo, String sha) {
@@ -123,7 +120,7 @@ public class RepoService {
         String body = (String) issue.get("body");
         String issueText = (title != null ? title : "") + " " + (body != null ? body : "");
 
-        String analysis = aiClient.analyze(repoKey, issueText);
+        Object analysis = aiClient.analyze(repoKey, issueText);
         return Map.of(
                 "issue", issue,
                 "analysis", analysis
