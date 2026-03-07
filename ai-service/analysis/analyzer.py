@@ -1,6 +1,6 @@
 from langchain_core.messages import SystemMessage, HumanMessage
-from llm.prompts import build_analysis_system_prompt, build_analysis_user_prompt
-from llm.client import set_llm
+from analysis.prompts import build_analysis_system_prompt, build_analysis_user_prompt
+from utils.llm_client import set_llm
 from models.analysis_result import AnalysisResult
 
 def analyze_issue(issue, code_context):

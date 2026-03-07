@@ -1,5 +1,5 @@
 from concurrent.futures import ThreadPoolExecutor
-from rag.chunking import chunk_file
+from rag.chunking.chunk_file import chunk_file
 from utils.language_detection import detect_language
 from utils.regex import extract_imports
 

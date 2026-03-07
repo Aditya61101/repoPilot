@@ -3,9 +3,10 @@ import faiss
 import pickle
 import json
 from rank_bm25 import BM25Okapi
-from functools import lru_cache
 from dotenv import load_dotenv
 from utils.regex import TOKEN_PATTERN
+from rag.graph.graph_builder import build_repo_graph
+from rag.graph.import_index_builder import build_import_indexes
 load_dotenv()
 
 VECTOR_STORE = os.getenv("VECTOR_STORE_PATH", "vector_store")
@@ -25,14 +26,15 @@ def get_index(repo):
     if repo in index_cache:
         print("loading index from memory cache")
         return index_cache[repo]
-    index, chunks, metadata, file_chunks, bm25 = load_index(repo=repo)
+    index, chunks, metadata, file_chunks, bm25, repo_graph = load_index(repo=repo)
 
     index_cache[repo] = {
         "index": index,
         "chunks": chunks,
         "metadata": metadata,
         "file_chunks": file_chunks,
-        "bm25": bm25
+        "bm25": bm25,
+        "repo_graph": repo_graph
     }
     print("loading index from disk")
     return index_cache[repo]
@@ -42,21 +44,28 @@ def load_index(repo):
     try:
         path = repo_path(repo)
         index = faiss.read_index(f"{path}/index.faiss")
-
+        print("index loading completed")
         with open(f"{path}/chunks.pkl", "rb") as f:
             chunks = pickle.load(f)
+        print("chunks loading completed")
         
         metadata = load_metadata(repo)
+        print("metadata loading completed")
         
         from collections import defaultdict
-
         # grouping file by path
         file_chunks = defaultdict(list)
         for c in chunks:
             file_chunks[c['path']].append(c)
+        print("grouping file by path completed")
+        
         # sorting each file content by start_line
-        for c_in_file in file_chunks.values():
-            c_in_file.sort(key=lambda x: x['start_line'])
+        for path, file_chunk_list in file_chunks.items():
+            file_chunk_list.sort(key=lambda x: x['start_line'])
+            for i, chunk in enumerate(file_chunk_list):
+                chunk['file_index'] = i
+        print("sorting and file indexing completed")
+        
         # building BM25
         corpus = [
             TOKEN_PATTERN.findall(
@@ -64,8 +73,19 @@ def load_index(repo):
             ) for c in chunks
         ]
         bm25 = BM25Okapi(corpus)
+        print("bm25 loading completed")
+        # repo graph
+        repo_files = list(file_chunks.keys())
+        file_index, module_index = build_import_indexes(repo_files)
+        print("file and module index loading completed")
+        repo_graph = build_repo_graph(
+            chunks,
+            file_index=file_index,
+            module_index=module_index
+        )
+        print("build repo graph completed")
 
-        return index, chunks, metadata, file_chunks, bm25
+        return index, chunks, metadata, file_chunks, bm25, repo_graph
     except Exception as e:
         print('loading existing index failed', e)
         return None

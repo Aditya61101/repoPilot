@@ -1,10 +1,15 @@
 import faiss
-from models.request import EnsureIndexedRequest, IndexRequest, AnalyzeRequest
+from fastapi import APIRouter
+
+from models.request import EnsureIndexedRequest, IndexRequest, AnalyzeRequest, PatchPlannerRequest
+
 from rag.index_manager import index_exists, load_metadata, save_index
 from rag.embedding import embed_texts
+
 from utils.parallel_chunking import parallel_chunk
+
 from services.analysis_service import run_issue_analysis
-from fastapi import APIRouter
+from services.patch_planning_service import patch_planning
 
 router = APIRouter(prefix="/ai", tags=['AI'])
 
@@ -57,3 +62,13 @@ def analyze(req:AnalyzeRequest):
     return {
         "analysis": analysis
     }
+
+@router.post("/plan-patch")
+def patch_planner(req:PatchPlannerRequest):
+    if not index_exists(req.repo_key):
+        return  { "message": "Repo not indexed", "status":False }
+    
+    planned = patch_planning(req.repo_key, req.issue, req.analysis_json)
+    
+    print("planned patch: ", planned)
+    return planned

@@ -34,10 +34,15 @@ SYMBOL_PATTERNS = {
         re.compile(r"class\s+([A-Za-z_]\w*)")
     ],
     "javascript": [
-        re.compile(r"function\s+([A-Za-z_]\w*)"),
         re.compile(r"class\s+([A-Za-z_]\w*)"),
-        re.compile(r"const\s+([A-Za-z_]\w*)\s*=\s*\("),
-        re.compile(r"export\s+const\s+([A-Za-z_]\w*)")
+        re.compile(r"function\s+([A-Za-z_]\w*)\s*\("),
+        re.compile(r"const\s+([A-Za-z_]\w*)\s*=\s*(?:async\s*)?\([^)]\)\s=>"),
+        re.compile(r"export\s+const\s+([A-Za-z_]\w*)"),
+        re.compile(r"export\s+function\s+([A-Za-z_]\w*)"),
+        # re.compile(r"function\s+([A-Za-z_]\w*)"),
+        # re.compile(r"class\s+([A-Za-z_]\w*)"),
+        # re.compile(r"const\s+([A-Za-z_]\w*)\s*=\s*\("),
+        # re.compile(r"export\s+const\s+([A-Za-z_]\w*)")
     ],
     "typescript": [
         re.compile(r"function\s+([A-Za-z_]\w*)"),
@@ -56,7 +61,15 @@ SYMBOL_PATTERNS = {
     "rust": [
         re.compile(r"fn\s+([A-Za-z_]\w*)"),
         re.compile(r"struct\s+([A-Za-z_]\w*)")
-    ]
+    ],
+    # "c": [
+    #     re.compile(r"[A-Za-z_][\w\s\]+\s+([A-Za-z_]\w)\s*\([^)]\)\s\{"),
+    # ],
+    "cpp": [
+        re.compile(r"class\s+([A-Za-z_]\w*)"),
+        re.compile(r"struct\s+([A-Za-z_]\w*)"),
+        re.compile(r"[A-Za-z_][\w:<>\\&\s]+\s+([A-Za-z_]\w)\s*\([^)]\)\s\{"),
+    ],
 }
 
 # called per chunk

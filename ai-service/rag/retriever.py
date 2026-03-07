@@ -3,7 +3,8 @@ from collections import defaultdict
 from rag.embedding import embed_query
 from rag.index_manager import get_index
 from rag.models import get_reranker
-from constants import MAX_TOKEN, DENSE_K, SPARSE_K, K_RRF
+from rag.graph.graph_expander import expand_graph
+from constants import MAX_TOKEN, RETRIEVAL_CONFIG, K_RRF
 from utils.regex import TOKEN_PATTERN
 
 # this assumes 1 token = 4 chars
@@ -52,7 +53,7 @@ def expand_context(top_chunks, file_chunks, window=1):
         path = chunk['path']
         # get chunks from same file
         same_file_chunks = file_chunks[path]
-        idx = same_file_chunks.index(chunk)
+        idx = chunk['file_index']
 
         start = max(0, idx-window)
         end = min(len(same_file_chunks), idx+window+1)
@@ -70,17 +71,27 @@ def expand_context(top_chunks, file_chunks, window=1):
 
     return unique
 
-def retrieve(repo, query:str):
+def retrieve(repo, query:str, stage:str):
+
+    config = RETRIEVAL_CONFIG[stage]
+
+    dense_k = config['dense_k']
+    sparse_k = config['sparse_k']
+    window = config['window']
+    graph_depth = config['graph_depth']
+    rerank_top = config['rerank_top']
+
     repo_index = get_index(repo=repo)
     index = repo_index['index']
     chunks = repo_index['chunks']
     file_chunks = repo_index['file_chunks']
     bm25 = repo_index['bm25']
+    repo_graph = repo_index['repo_graph']
 
     query_vector = embed_query(query)
     faiss.normalize_L2(query_vector)
     ### dense retrieval
-    D, I_dense = index.search(query_vector, DENSE_K)
+    D, I_dense = index.search(query_vector, dense_k)
     dense_chunks = [chunks[i] for i in I_dense[0]]
     
     ### sparse retrieval
@@ -91,7 +102,7 @@ def retrieve(repo, query:str):
         enumerate(bm25_scores),
         key=lambda x:x[1],
         reverse=True
-    )[:SPARSE_K]
+    )[:sparse_k]
     sparse_chunks = [chunks[i] for i,_ in top_sparse]
     
     ### reciprocal rank fusion
@@ -111,7 +122,7 @@ def retrieve(repo, query:str):
         (score, candidate_chunks[cid]) for cid, score in rrf_scores.items()
     ]
     fused.sort(reverse=True, key=lambda x:x[0])
-    top_candidates = [c for _,c in fused[:20]]
+    top_candidates = [c for _,c in fused[:rerank_top]]
     
     ### cross encoder reranking
     pairs = [
@@ -132,19 +143,30 @@ def retrieve(repo, query:str):
         reverse=True
     )
     top_chunks = [c for _,c in reranked[:8]]
-
+    
     ### context expansion
-    top_expanded_chunks = expand_context(top_chunks=top_chunks, file_chunks=file_chunks)
+    top_expanded_chunks = expand_context(
+        top_chunks=top_chunks, 
+        file_chunks=file_chunks,
+        window=window
+    )
     
     ### grouping chunks by file
     grouped = defaultdict(list)
     for chunk in top_expanded_chunks:
         grouped[chunk['path']].append(chunk)
     
-    ### expanding based on imports
-    grouped = expand_imports(grouped=grouped, file_chunks=file_chunks)
-
     ### packing
     packed = pack_context(grouped_chunks=grouped, max_tokens=MAX_TOKEN)
+
+    ### expanding based on repo graph
+    expanded_files = expand_graph(
+        files=list(packed.keys()),
+        repo_graph=repo_graph,
+        limit=graph_depth
+    )
+    for f in expanded_files:
+        if f not in packed:
+            packed[f] = [file_chunks[f][0]]
 
     return packed
