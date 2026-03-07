@@ -59,6 +59,6 @@ public class AIClient {
                 .bodyToMono(Map.class)
                 .block();
 
-        return response.get("retrieved_context");
+        return response.get("analysis");
     }
 }

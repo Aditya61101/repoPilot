@@ -1,9 +1,9 @@
-import re
 import faiss
 from collections import defaultdict
 from rag.embedding import embed_query
 from rag.index_manager import get_index
-from constants import MAX_TOKEN
+from rag.models import get_reranker
+from constants import MAX_TOKEN, DENSE_K, SPARSE_K, K_RRF
 from utils.regex import TOKEN_PATTERN
 
 # this assumes 1 token = 4 chars
@@ -46,27 +46,6 @@ def expand_imports(grouped, file_chunks, max_import_files=2):
                     break
     return expanded
 
-def keyword_score(retrieved_chunk, query):
-    text = (retrieved_chunk['content']+retrieved_chunk['path']).lower()
-
-    score = 0
-    for w in query:
-        if w in text:
-            score+=1
-    return score
-
-def symbol_score(retrieved_chunk, query):
-    symbol = retrieved_chunk.get("symbol")
-    if not symbol:
-        return 0
-    
-    symbol = symbol.lower()
-    score = 0
-    for w in query:
-        if w in symbol:
-            score+= 1
-    return score
-
 def expand_context(top_chunks, file_chunks, window=1):
     expanded = []
     for chunk in top_chunks:
@@ -81,64 +60,91 @@ def expand_context(top_chunks, file_chunks, window=1):
         expanded.extend(same_file_chunks[start:end])
     
     # deduplicate
-    unique = {}
+    unique = []
+    seen = set()
     for c in expanded:
-        key = (c['path'], c['start_line'])
-        unique[key] = c
+        key = c['chunk_id']
+        if key not in seen:
+            seen.add(key)
+            unique.append(c)
 
-    return list(unique.values())
+    return unique
 
-def retrieve(repo, query:str, k=5):
+def retrieve(repo, query:str):
     repo_index = get_index(repo=repo)
     index = repo_index['index']
     chunks = repo_index['chunks']
     file_chunks = repo_index['file_chunks']
-    
+    bm25 = repo_index['bm25']
+
     query_vector = embed_query(query)
     faiss.normalize_L2(query_vector)
+    ### dense retrieval
+    D, I_dense = index.search(query_vector, DENSE_K)
+    dense_chunks = [chunks[i] for i in I_dense[0]]
     
-    D, I = index.search(query_vector, k)
-    print("Distance: ", D)
-    print("vector ids: ", I)
-
+    ### sparse retrieval
     # chat streaming -> ['chat', 'streaming']
     query_words = TOKEN_PATTERN.findall(query.lower())
-    results = []
-
-    for rank, idx in enumerate(I[0]):
-        chunk = chunks[idx]
-
-        semantic_score =  1/(1+D[0][rank])
-        k_score = keyword_score(chunk, query_words)
-        s_score = symbol_score(chunk, query_words)
-        # will be replaced by Reciprocal Rank Fusion (RRF)
-        final_score = (
-            0.7 * semantic_score
-            + 0.2 * k_score
-            + 0.1 * s_score
-        )
-        if k_score==0:
-            final_score*=0.5
-        results.append((final_score, chunk))
-
-    # re rank: sorting on the basis of final_score per chunk
-    results.sort(reverse=True, key=lambda x:x[0])
+    bm25_scores = bm25.get_scores(query_words)
+    top_sparse = sorted(
+        enumerate(bm25_scores),
+        key=lambda x:x[1],
+        reverse=True
+    )[:SPARSE_K]
+    sparse_chunks = [chunks[i] for i,_ in top_sparse]
     
-    # top chunks
-    top_chunks = [c for _,c in results[:10]]
+    ### reciprocal rank fusion
+    rrf_scores = defaultdict(float)
+    for rank, chunk in enumerate(dense_chunks, 1):
+        cid = chunk['chunk_id']
+        rrf_scores[cid]+=1/(K_RRF+rank)
     
-    # context expansion
+    for rank, chunk in enumerate(sparse_chunks, 1):
+        cid = chunk['chunk_id']
+        rrf_scores[cid]+=1/(K_RRF+rank)
+    
+    candidate_chunks = {
+        c['chunk_id']: c for c in dense_chunks+sparse_chunks
+    }
+    fused = [
+        (score, candidate_chunks[cid]) for cid, score in rrf_scores.items()
+    ]
+    fused.sort(reverse=True, key=lambda x:x[0])
+    top_candidates = [c for _,c in fused[:20]]
+    
+    ### cross encoder reranking
+    pairs = [
+        (
+            query,
+            f"""
+            File: {c['path']}
+            Function: {c.get('symbol')}
+            Imports: {",".join(c.get('imports', []))}
+            Code: {c['content']}
+            """
+        ) for c in top_candidates
+    ]
+    reranker = get_reranker()
+    scores = reranker.predict(pairs, batch_size=8)
+    reranked = sorted(
+        zip(scores, top_candidates),
+        reverse=True
+    )
+    top_chunks = [c for _,c in reranked[:8]]
+
+    ### context expansion
     top_expanded_chunks = expand_context(top_chunks=top_chunks, file_chunks=file_chunks)
     
-    # grouping chunks by file
+    ### grouping chunks by file
     grouped = defaultdict(list)
     for chunk in top_expanded_chunks:
         grouped[chunk['path']].append(chunk)
     
-    # expanding based on imports
+    ### expanding based on imports
     grouped = expand_imports(grouped=grouped, file_chunks=file_chunks)
 
-    # packing
+    ### packing
     packed = pack_context(grouped_chunks=grouped, max_tokens=MAX_TOKEN)
 
     return packed
