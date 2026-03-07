@@ -1,6 +1,6 @@
 from langchain_text_splitters import RecursiveCharacterTextSplitter
-from util.regex import extract_symbol
-from util.language_detection import detect_language
+from utils.regex import extract_symbol
+from utils.language_detection import detect_language
 
 splitter = RecursiveCharacterTextSplitter(
     chunk_size=800,

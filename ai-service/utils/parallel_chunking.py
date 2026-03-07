@@ -1,7 +1,7 @@
 from concurrent.futures import ThreadPoolExecutor
 from rag.chunking import chunk_file
-from util.language_detection import detect_language
-from util.regex import extract_imports
+from utils.language_detection import detect_language
+from utils.regex import extract_imports
 
 def process_file(file_obj):
     path = file_obj['path']

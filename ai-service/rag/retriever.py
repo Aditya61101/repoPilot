@@ -4,6 +4,7 @@ from collections import defaultdict
 from rag.embedding import embed_query
 from rag.index_manager import get_index
 from constants import MAX_TOKEN
+from utils.regex import TOKEN_PATTERN
 
 # this assumes 1 token = 4 chars
 def estimate_tokens(text):
@@ -92,7 +93,7 @@ def retrieve(repo, query:str, k=5):
     index = repo_index['index']
     chunks = repo_index['chunks']
     file_chunks = repo_index['file_chunks']
-
+    
     query_vector = embed_query(query)
     faiss.normalize_L2(query_vector)
     
@@ -101,7 +102,7 @@ def retrieve(repo, query:str, k=5):
     print("vector ids: ", I)
 
     # chat streaming -> ['chat', 'streaming']
-    query_words = re.findall(r"\w+", query.lower())
+    query_words = TOKEN_PATTERN.findall(query.lower())
     results = []
 
     for rank, idx in enumerate(I[0]):

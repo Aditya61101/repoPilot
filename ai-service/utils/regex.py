@@ -1,6 +1,8 @@
 import re
 
-IMPORT_PATTERNS = IMPORT_PATTERNS = {
+TOKEN_PATTERN = re.compile(r"\w+")
+
+IMPORT_PATTERNS = {
     "python": [
         re.compile(r"import\s+([a-zA-Z0-9_\.]+)"),
         re.compile(r"from\s+([a-zA-Z0-9_\.]+)\s+import")
