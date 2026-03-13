@@ -19,3 +19,8 @@ class PatchPlannerRequest(BaseModel):
     repo_key:str
     issue:str
     analysis_json: dict
+
+class PatchGeneratorRequest(BaseModel):
+    repo_key:str
+    issue:str
+    patch_plan: list

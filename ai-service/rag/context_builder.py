@@ -1,13 +1,22 @@
-def build_llm_context(grouped_chunks, max_chars=12000):
+def build_llm_context(grouped_chunks, max_chars=16000):
     context_parts = []
     total_chars = 0
 
     for path, chunks in grouped_chunks.items():
         file_block = f"\nFILE: {path}\n```code\n"
 
+        chunks = sorted(
+            chunks,
+            key=lambda c: (c.get('symbol') is None, c['start_line'])
+        )
+
         for c in chunks:
+            symbol_line = ""
+            if c.get('symbol'):
+                symbol_line = f"SYMBOL: {c['symbol']}\n"
             code_block = (
-                f"\n// lines {c['start_line']}-{c['end_line']}\n"
+                f"\n{symbol_line}"
+                f"// lines {c['start_line']}-{c['end_line']}\n"
                 f"{c['content']}\n"
             )
             if total_chars+len(code_block) > max_chars:

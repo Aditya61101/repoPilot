@@ -26,7 +26,7 @@ def get_index(repo):
     if repo in index_cache:
         print("loading index from memory cache")
         return index_cache[repo]
-    index, chunks, metadata, file_chunks, bm25, repo_graph = load_index(repo=repo)
+    index, chunks, metadata, file_chunks, bm25, repo_graph, repo_state = load_index(repo=repo)
 
     index_cache[repo] = {
         "index": index,
@@ -34,7 +34,8 @@ def get_index(repo):
         "metadata": metadata,
         "file_chunks": file_chunks,
         "bm25": bm25,
-        "repo_graph": repo_graph
+        "repo_graph": repo_graph,
+        "repo_state": repo_state
     }
     print("loading index from disk")
     return index_cache[repo]
@@ -43,11 +44,21 @@ def load_index(repo):
     print('inside load_index')
     try:
         path = repo_path(repo)
+        
         index = faiss.read_index(f"{path}/index.faiss")
         print("index loading completed")
+        
         with open(f"{path}/chunks.pkl", "rb") as f:
             chunks = pickle.load(f)
         print("chunks loading completed")
+
+        with open(f"{path}/repo_files.pkl", "rb") as f:
+            repo_files = pickle.load(f)
+        repo_state = {
+            p: lines.copy()
+            for p,lines in repo_files.items()
+        }
+        print("repo_state loading and copying completed")
         
         metadata = load_metadata(repo)
         print("metadata loading completed")
@@ -84,13 +95,12 @@ def load_index(repo):
             module_index=module_index
         )
         print("build repo graph completed")
-
-        return index, chunks, metadata, file_chunks, bm25, repo_graph
+        return index, chunks, metadata, file_chunks, bm25, repo_graph, repo_state
     except Exception as e:
         print('loading existing index failed', e)
         return None
 
-def save_index(repo, index, chunks, commit_sha):
+def save_index(repo, index, chunks, commit_sha, files):
     print('inside save_index')
     try:
         path = repo_path(repo)
@@ -104,13 +114,24 @@ def save_index(repo, index, chunks, commit_sha):
         with open(f"{path}/chunks.pkl", "wb") as f:
             pickle.dump(chunks, f)
         print("chunks.pkl writing completed")
+
+        repo_files_dict = {}
+        for file_obj in files:
+            repo_files_dict[file_obj['path']]=file_obj['content'].splitlines()
+        print("writing repo_files.pkl")
+        with open(f"{path}/repo_files.pkl", "wb") as f:
+            pickle.dump(repo_files_dict, f)
+        print("repo_files.pkl writing completed")
+
         # writing metadata for the index
+        print("writing metadata.json")
         metadata = {
             "commit_sha": commit_sha,
             "chunk_count": len(chunks)
         }
         with open(f"{path}/metadata.json", "w") as f:
             json.dump(metadata, f, indent=2)
+        print("metadata.json writing completed")
         return True
     except Exception as e:
         print('index saving failed', e)

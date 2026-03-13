@@ -1,15 +1,16 @@
 import faiss
 from fastapi import APIRouter
 
-from models.request import EnsureIndexedRequest, IndexRequest, AnalyzeRequest, PatchPlannerRequest
+from models.request import EnsureIndexedRequest, IndexRequest, AnalyzeRequest, PatchPlannerRequest, PatchGeneratorRequest
 
 from rag.index_manager import index_exists, load_metadata, save_index
 from rag.embedding import embed_texts
 
-from utils.parallel_chunking import parallel_chunk
+from rag.chunking.parallel_chunking import parallel_chunk
 
 from services.analysis_service import run_issue_analysis
 from services.patch_planning_service import patch_planning
+from services.patch_generation_service import patch_generation
 
 router = APIRouter(prefix="/ai", tags=['AI'])
 
@@ -32,17 +33,24 @@ def index_repo(req:IndexRequest):
     
     embeddings = embed_texts(texts)
 
+    print("embedding completed")
+    print("------------------------------------")
+
     index = faiss.IndexFlatL2(embeddings.shape[1])
     
     # normalizes embeddings: converts vectors to unit length
     faiss.normalize_L2(embeddings)
     index.add(embeddings)
 
+    print("index added")
+    print("------------------------------------")
+
     res = save_index(
         repo=req.repo_key,
         index=index,
         chunks=chunks, 
-        commit_sha=req.commit_sha
+        commit_sha=req.commit_sha,
+        files=req.files
     )
 
     return {
@@ -58,7 +66,7 @@ def analyze(req:AnalyzeRequest):
     
     analysis = run_issue_analysis(req.repo_key, req.issue)
 
-    print("analysis: ", analysis)
+    # print("analysis: ", analysis)
     return {
         "analysis": analysis
     }
@@ -70,5 +78,15 @@ def patch_planner(req:PatchPlannerRequest):
     
     planned = patch_planning(req.repo_key, req.issue, req.analysis_json)
     
-    print("planned patch: ", planned)
+    # print("planned patch: ", planned)
     return planned
+
+@router.post("/generate-patch")
+def patch_generator(req:PatchGeneratorRequest):
+    if not index_exists(req.repo_key):
+        return  { "message": "Repo not indexed", "status":False }
+    
+    patches = patch_generation(req.repo_key, req.issue, req.patch_plan)
+    
+    # print("generated patch: ", patches)
+    return patches

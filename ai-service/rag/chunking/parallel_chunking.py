@@ -5,17 +5,27 @@ from utils.regex import extract_imports
 
 def process_file(file_obj):
     path = file_obj['path']
+    print(f"processing file for path: {path}")
+    print("------------------------------------")
     content = file_obj['content']
     lang = detect_language(path)
     imports = extract_imports(content, lang)
     
+    print(f"imports extracted: {imports}")
+    print("------------------------------------")
+    
     file_chunks = chunk_file(path, content)
     for c in file_chunks:
         c['imports'] = imports
-
+    
+    print(f"file chunking completed for path: {path}")
+    print("------------------------------------")
+    
     return file_chunks
 
 def parallel_chunk(files):
+    print("inside parallel chunk")
+    print("------------------------------------")
     chunks = []
 
     with ThreadPoolExecutor(max_workers=8) as executor:

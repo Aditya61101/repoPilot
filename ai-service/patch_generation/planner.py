@@ -13,5 +13,5 @@ def plan_patch(issue, analysis_text, context):
         SystemMessage(system_prompt),
         HumanMessage(user_prompt)
     ])
-    print("patch planner response:", response.model_dump())
+    # print("patch planner response:", response.model_dump())
     return response.model_dump()

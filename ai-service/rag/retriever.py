@@ -163,10 +163,10 @@ def retrieve(repo, query:str, stage:str):
     expanded_files = expand_graph(
         files=list(packed.keys()),
         repo_graph=repo_graph,
-        limit=graph_depth
+        depth=graph_depth
     )
     for f in expanded_files:
-        if f not in packed:
+        if f not in packed and f in file_chunks:
             packed[f] = [file_chunks[f][0]]
 
     return packed
