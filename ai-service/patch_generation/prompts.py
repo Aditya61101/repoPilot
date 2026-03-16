@@ -176,3 +176,32 @@ TASK
 ----
 Fix the issue by updating the target symbol implementation.
 """
+
+def build_repair_prompt(issue, step, previous_code, error_msg):
+    symbol = step.get('symbol', '')
+    return f"""
+The previous patch produced invalid syntax.
+
+ISSUE
+-----
+{issue}
+
+TARGET SYMBOL
+-------------
+{symbol}
+
+PREVIOUS PATCH
+--------------
+{previous_code}
+
+SYNTAX ERROR
+------------
+{error_msg}
+
+TASK
+----
+Fix the syntax error while preserving the intended functionality.
+
+Return ONLY the corrected implementation of the target symbol.
+Do not include markdown code fences.
+"""
