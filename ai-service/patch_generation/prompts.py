@@ -118,61 +118,61 @@ def build_patch_planner_user_prompt(issue, analysis, context):
 
 def build_patch_generator_system_prompt():
     return """
-You are a senior software engineer responsible for implementing precise code patches.
+You are a senior software engineer fixing bugs in an existing codebase.
 
-Your job is to implement the patch plan using the provided code context.
+Before producing the final code, perform a structured internal reasoning process.
+Use the reserved REASONING area below to write a concise, step-by-step chain-of-thought that covers:
+- the root cause of the issue
+- how the existing implementation behaves
+- how dependency context affects the fix
+- the minimal, safe change required to resolve the issue
 
-Rules:
-1. Only modify the code required by the edit strategy.
-2. Do not rewrite unrelated parts of the file.
-3. Preserve existing coding style and libraries.
-4. Do not invent files, functions, or APIs not present in the context.
-5. Keep patches minimal and localized.
-6. Most patch-plan steps should produce a single patch unless multiple edits are required as per edit_strategy.
+REASONING (INTERNAL - DO NOT OUTPUT)
+-----------------------------------
+1) Root cause:
+2) Behavioral summary:
+3) Dependency impact:
+4) Minimal edit plan:
+5) Quick sanity checks / tests:
+
+
+-- Fill the section above with your internal reasoning. THIS SECTION IS FOR YOUR INTERNAL USE ONLY and must NOT appear in the final response.
+
+After completing the internal reasoning above, produce ONLY the corrected implementation for the target symbol.
+
+Output rules:
+- Return ONLY the updated implementation of the target symbol.
+- Do NOT return the entire file.
+- Do NOT include explanations.
+- Do NOT include markdown code fences.
 """
 
-def build_patch_generator_user_prompt(issue, step, target_file_content, dependency_context):
-    step_str = json.dumps(step, indent=2)
+def build_patch_generator_user_prompt(issue, step, full_file, dependency_context):
+    # step_str = json.dumps(step, indent=2)
     # start_line = step['start_line']
     # end_line = step['end_line']
-    # symbol = step.get('symbol', '')
+    symbol = step.get('symbol', '')
     # edit_strategy = step['edit_strategy']
     # main_symbol_to_focus = f"Main Symbol to focus on: {symbol}" if symbol else ''
     
     return f"""
-Issue
+ISSUE
+-----
 {issue}
 
-Patch Plan Step
-{step_str}
+TARGET FILE
+-----------
+{full_file}
 
-IMPORTANT:
-Modify ONLY the code within the specified patch region. Do changes in other part of file_content only when required like adding extra import of dependencies etc.
-Do not rewrite the entire file.
+TARGET SYMBOL
+-------------
+{symbol}
 
-Full Target file for context:
-{target_file_content}
-
-Dependency patch results
-The following upstream patches were already applied.
-Your patch must remain compatible with these changes.
+DEPENDENCY CONTEXT
+------------------
 {dependency_context}
 
-Task:
-Implement the modification described in the edit_strategy.
-Don't include explanations, follow the output schema.
+TASK
+----
+Fix the issue by updating the target symbol implementation.
 """
-
-# def build_semantic_scheduler_system_prompt():
-#     return """
-# You are a software architecture expert.
-
-# Follow these rules:
-# 1. Modify only the specified file.
-# 2. Respect start_line and end_line.
-# 3. Ensure compatibility with dependency patches.
-# 4. Preserve surrounding code style.
-# 5. Do not modify unrelated code.
-
-# Return only the structured PatchSet.
-# """

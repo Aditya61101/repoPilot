@@ -1,3 +1,5 @@
+import os
+
 MAX_TOKEN = 12000
 K_RRF = 60
 MAX_GENERATOR_CONTEXT_CHARS = 12000
@@ -24,4 +26,27 @@ RETRIEVAL_CONFIG = {
         "graph_depth": 0,
         "rerank_top": 6
     }
+}
+
+# Language-specific syntax check commands
+SYNTAX_CHECKERS = {
+    ".py": ["python", "-m", "py_compile"],
+    ".js": ["node", "--check"],
+    ".jsx": ["node", "--check"],
+    ".sh": ["bash", "-n"],
+}
+
+EXTENSION_MAPPING = {
+    ".py": "python",
+    ".js": "javascript",
+    ".jsx": "javascript",
+    ".ts": "typescript",
+    ".tsx": "typescript",
+    ".java": "java",
+    ".go": "go",
+    ".cpp": "cpp",
+    ".c": "cpp",
+    ".rs": "rust",
+    ".html": "html",
+    ".css": "css"
 }

@@ -1,9 +1,22 @@
-# from concurrent.futures import ThreadPoolExecutor
-from models.patch_generator import PatchSet
 from rag.index_manager import get_index
-from patch_generation.normalizer import normalize_patch_plan
-from patch_generation.patch_scheduler import schedule_patch_plan
-from patch_generation.generator import generate_batch_patches
+from models.patch_generator import Patch, PatchSet
+from patch_generation.generator.symbol_parser.extract_symbol import extract_symbol_range
+from patch_generation.validation.validate import validate_patch_set
+from patch_generation.generator.normalizer import normalize_patch_plan
+from patch_generation.generator.patch_scheduler import schedule_patch_plan
+from patch_generation.generator.generator import generate_batch_patches
+
+def compute_patch(new_code, step, repo_state):
+    start, end = extract_symbol_range(repo_state, step)
+    patch = Patch(
+        file=step['file'],
+        edit_type=step['edit_type'],
+        start_line=start,
+        end_line=end,
+        replacement=new_code
+    )
+    return PatchSet(patches=[patch])
+
 
 def flatten_patch_results(patch_results):
     patches = []
@@ -33,17 +46,32 @@ def patch_generation(repo_key, issue, patch_plan):
         responses = generate_batch_patches(
             issue, 
             batch, 
-            patch_results, 
-            file_chunks, 
+            patch_results,
             patch_lookup, 
             repo_state
         )
-        for step, patch_set in zip(batch,responses):
+        
+        for step, response in zip(batch,responses):
+            new_code = response.model_dump()['updated_symbol_code']
+            # print("new code:", new_code)
+            patch_set = compute_patch(new_code, step, repo_state)
+
+            # per patch batch validation stage
+            ok, error = validate_patch_set(repo_state, patch_set)
+
+            if not ok:
+                raise RuntimeError(error)
             patch_results[step['id']]=patch_set
 
     # result aggregation
     final_patch_set = flatten_patch_results(patch_results)
     return final_patch_set.model_dump()
+    
+    
+    
+    
+    
+    
     # patches = []
     # def process_step(step):
     #     return generate_patch(
