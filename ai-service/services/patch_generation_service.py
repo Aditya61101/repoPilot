@@ -1,4 +1,7 @@
+from copy import deepcopy
+
 from patch_generation.generator.applier import apply_patch_set_to_repo_state
+from patch_generation.generator.diff_generation import generate_repo_diff
 from patch_generation.prompts import build_repair_prompt
 from rag.index_manager import get_index
 from models.patch_generator import Patch, PatchSet
@@ -69,7 +72,9 @@ def patch_generation(repo_key, issue, patch_plan):
     repo_index = get_index(repo_key)
     file_chunks = repo_index['file_chunks']
     repo_graph  = repo_index['repo_graph']
+    
     repo_state = repo_index['repo_state']
+    repo_state_before = deepcopy(repo_state)
     
     # normalize patch plan
     patch_plan = normalize_patch_plan(patch_plan, file_chunks)
@@ -94,7 +99,7 @@ def patch_generation(repo_key, issue, patch_plan):
             new_code = response.model_dump()['updated_symbol_code']
             patch_set = compute_patch(new_code, step, repo_state)
 
-            patch_sets.append(patch_set)
+            patch_sets.append((step, patch_set))
 
         validated_patches = validate_and_repair_batch(
             issue,
@@ -109,4 +114,10 @@ def patch_generation(repo_key, issue, patch_plan):
 
     # result aggregation
     final_patch_set = flatten_patch_results(patch_results)
-    return final_patch_set.model_dump()
+    # diff generation
+    diff = generate_repo_diff(repo_state_before, repo_state)
+    
+    return {
+        **final_patch_set.model_dump(),
+        "diff": diff
+    }

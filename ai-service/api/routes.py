@@ -86,7 +86,6 @@ def patch_generator(req:PatchGeneratorRequest):
     if not index_exists(req.repo_key):
         return  { "message": "Repo not indexed", "status":False }
     
-    patches = patch_generation(req.repo_key, req.issue, req.patch_plan)
+    response = patch_generation(req.repo_key, req.issue, req.patch_plan)
     
-    # print("generated patch: ", patches)
-    return patches
+    return response
