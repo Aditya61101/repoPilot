@@ -11,6 +11,7 @@ from patch_generation.generator.normalizer import normalize_patch_plan
 from patch_generation.generator.patch_scheduler import schedule_patch_plan
 from patch_generation.generator.generator import generate_batch_patches, generator_llm
 from constants import MAX_REPAIR_ATTEMPTS
+from services.pr_service import create_pull_request
 
 def compute_patch(new_code, step, repo_state):
     start, end = extract_symbol_range(repo_state, step)
@@ -114,10 +115,24 @@ def patch_generation(repo_key, issue, patch_plan):
 
     # result aggregation
     final_patch_set = flatten_patch_results(patch_results)
+    
     # diff generation
     diff = generate_repo_diff(repo_state_before, repo_state)
     
+    # pr creation
+    pr_url = create_pull_request(
+        repo_state,
+        final_patch_set,
+        repo_key,
+        base_branch="main"
+    )
     return {
+        "pr_url": pr_url,
         **final_patch_set.model_dump(),
         "diff": diff
     }
+
+    # return {
+    #     **final_patch_set.model_dump(),
+    #     "diff": diff
+    # }

@@ -5,11 +5,12 @@ def validate_patch_set(repo_state, patch_set):
     # TODO: optimize through parallel validation of patched files
     for patch in patch_set.patches:
 
-        new_file_code = build_patched_file(repo_state, patch)
-        print("new code file: ", new_file_code)
+        new_lines = build_patched_file(repo_state, patch)
+        
+        code = "\n".join(new_lines)
         ok, error = validate_file_syntax(
             patch.file,
-            new_file_code
+            code
         )
 
         if not ok:

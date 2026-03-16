@@ -43,7 +43,7 @@ SYSTEM_PROMPT = build_patch_generator_system_prompt()
 #     return structured_llm.invoke(messages)
 
 def generate_batch_patches(issue, batch, patch_results, patch_lookup, repo_state):
-    print("system prompt:", SYSTEM_PROMPT)
+    # print("system prompt:", SYSTEM_PROMPT)
     # results = []
     # def run_step(step):
     #     target_file_content = repo_state[step['file']]
