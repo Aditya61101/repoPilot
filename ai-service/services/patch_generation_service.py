@@ -38,8 +38,8 @@ def validate_and_repair_batch(issue, patch_sets, repo_state):
     # patch_sets are the list of independent patches generated for the current batch
     validated = []
     for step, patch_set in patch_sets:
-        ok, error = validate_patch_set(repo_state, patch_set)
-
+        new_code = patch_set.patches[0].replacement
+        ok, error = validate_patch_set(issue ,repo_state, patch_set)
         # retry loop
         attempts = 0
         while not ok and attempts < MAX_REPAIR_ATTEMPTS:
@@ -58,7 +58,7 @@ def validate_and_repair_batch(issue, patch_sets, repo_state):
             patch_set = compute_patch(new_code, step, repo_state)
 
             # re-validate
-            ok, error = validate_patch_set(repo_state, patch_set)
+            ok, error = validate_patch_set(issue, repo_state, patch_set)
             attempts += 1
         
         if not ok:
@@ -120,19 +120,19 @@ def patch_generation(repo_key, issue, patch_plan):
     diff = generate_repo_diff(repo_state_before, repo_state)
     
     # pr creation
-    pr_url = create_pull_request(
-        repo_state,
-        final_patch_set,
-        repo_key,
-        base_branch="main"
-    )
-    return {
-        "pr_url": pr_url,
-        **final_patch_set.model_dump(),
-        "diff": diff
-    }
-
+    # pr_url = create_pull_request(
+    #     repo_state,
+    #     final_patch_set,
+    #     repo_key,
+    #     base_branch="main"
+    # )
     # return {
+    #     "pr_url": pr_url,
     #     **final_patch_set.model_dump(),
     #     "diff": diff
     # }
+
+    return {
+        **final_patch_set.model_dump(),
+        "diff": diff
+    }
