@@ -14,4 +14,4 @@ def plan_patch(issue, analysis_text, context):
         HumanMessage(user_prompt)
     ])
     # print("patch planner response:", response.model_dump())
-    return response.model_dump()
+    return response.model_dump()['patch_plan']

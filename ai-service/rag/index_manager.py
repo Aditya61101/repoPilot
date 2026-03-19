@@ -10,11 +10,11 @@ from rag.graph.import_index_builder import build_import_indexes
 load_dotenv()
 
 VECTOR_STORE = os.getenv("VECTOR_STORE_PATH", "vector_store")
-def repo_path(repo):
-    return f"{VECTOR_STORE}/{repo.replace("/", "_")}"
+def repo_path(repo, commit_sha):
+    return f"{VECTOR_STORE}/{repo}/{commit_sha}"
 
-def load_metadata(repo):
-    path = repo_path(repo)
+def load_metadata(repo, commit_sha):
+    path = repo_path(repo, commit_sha)
     with open(f"{path}/metadata.json", "r") as f:
         metadata = json.load(f)
     
@@ -22,11 +22,14 @@ def load_metadata(repo):
 
 # in memory caching
 index_cache = {}
-def get_index(repo):
+def get_index(repo, commit_sha):
     if repo in index_cache:
         print("loading index from memory cache")
         return index_cache[repo]
-    index, chunks, metadata, file_chunks, bm25, repo_graph, repo_state = load_index(repo=repo)
+    index, chunks, metadata, file_chunks, bm25, repo_graph, repo_state = load_index(
+        repo=repo, 
+        commit_sha=commit_sha
+    )
 
     index_cache[repo] = {
         "index": index,
@@ -40,10 +43,10 @@ def get_index(repo):
     print("loading index from disk")
     return index_cache[repo]
 
-def load_index(repo):
+def load_index(repo, commit_sha):
     print('inside load_index')
     try:
-        path = repo_path(repo)
+        path = repo_path(repo, commit_sha)
         
         index = faiss.read_index(f"{path}/index.faiss")
         print("index loading completed")
@@ -60,7 +63,7 @@ def load_index(repo):
         }
         print("repo_state loading and copying completed")
         
-        metadata = load_metadata(repo)
+        metadata = load_metadata(repo, commit_sha)
         print("metadata loading completed")
         
         from collections import defaultdict
@@ -103,7 +106,12 @@ def load_index(repo):
 def save_index(repo, index, chunks, commit_sha, files):
     print('inside save_index')
     try:
-        path = repo_path(repo)
+        path = repo_path(repo, commit_sha)
+        
+        # already indexed (idempotent)
+        if os.path.exists(path):
+            return
+        
         os.makedirs(path, exist_ok=True)
 
         print("writing index.faiss")
@@ -137,6 +145,7 @@ def save_index(repo, index, chunks, commit_sha, files):
         print('index saving failed', e)
         return False
 
-def index_exists(repo):
-    path = repo_path(repo)
+def index_exists(repo, commit_sha):
+    path = repo_path(repo, commit_sha)
+    print("path:", path)
     return os.path.exists(f"{path}/index.faiss")

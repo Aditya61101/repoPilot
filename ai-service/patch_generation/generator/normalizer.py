@@ -1,7 +1,6 @@
 from collections import defaultdict
 
 def normalize_patch_plan(patch_plan, file_chunks):
-
     normalized = []
     seen_ids = set()
 

@@ -1,6 +1,16 @@
 from pydantic import BaseModel
-from typing import List, Dict
-from models.analysis_result import AnalysisResult
+from typing import List, Dict, Optional
+
+
+class StartPipelineRequest(BaseModel):
+    repo_key:str
+    issue: str
+    commit_sha:str
+
+class ReviewPipelineRequest(BaseModel):
+    thread_id: str
+    approved: bool
+    feedback: Optional[str] = None
 
 class EnsureIndexedRequest(BaseModel):
     repo_key:str
@@ -14,13 +24,16 @@ class IndexRequest(BaseModel):
 class AnalyzeRequest(BaseModel):
     repo_key:str
     issue:str
+    commit_sha:str
 
 class PatchPlannerRequest(BaseModel):
     repo_key:str
     issue:str
     analysis_json: dict
+    commit_sha:str
 
 class PatchGeneratorRequest(BaseModel):
     repo_key:str
     issue:str
     patch_plan: list
+    commit_sha:str

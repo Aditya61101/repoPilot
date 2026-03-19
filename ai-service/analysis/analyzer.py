@@ -17,5 +17,5 @@ def analyze_issue(issue, code_context):
             user_prompt
         )]
     )
-    print("analyzer response:", response.model_dump())
+    # print("analyzer response:", response.model_dump())
     return response.model_dump()

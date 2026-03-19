@@ -71,7 +71,7 @@ def expand_context(top_chunks, file_chunks, window=1):
 
     return unique
 
-def retrieve(repo, query:str, stage:str):
+def retrieve(repo, query:str, stage:str, commit_sha:str):
 
     config = RETRIEVAL_CONFIG[stage]
 
@@ -81,7 +81,7 @@ def retrieve(repo, query:str, stage:str):
     graph_depth = config['graph_depth']
     rerank_top = config['rerank_top']
 
-    repo_index = get_index(repo=repo)
+    repo_index = get_index(repo=repo, commit_sha=commit_sha)
     index = repo_index['index']
     chunks = repo_index['chunks']
     file_chunks = repo_index['file_chunks']

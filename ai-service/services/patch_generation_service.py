@@ -68,14 +68,13 @@ def validate_and_repair_batch(issue, patch_sets, repo_state):
 
     return validated
 
-def patch_generation(repo_key, issue, patch_plan):
+def patch_generation(repo_key, issue, patch_plan, commit_sha):
 
-    repo_index = get_index(repo_key)
+    repo_index = get_index(repo_key, commit_sha)
     file_chunks = repo_index['file_chunks']
     repo_graph  = repo_index['repo_graph']
     
     repo_state = repo_index['repo_state']
-    repo_state_before = deepcopy(repo_state)
     
     # normalize patch plan
     patch_plan = normalize_patch_plan(patch_plan, file_chunks)
@@ -115,10 +114,8 @@ def patch_generation(repo_key, issue, patch_plan):
 
     # result aggregation
     final_patch_set = flatten_patch_results(patch_results)
-    
-    # diff generation
-    diff = generate_repo_diff(repo_state_before, repo_state)
-    
+
+    return final_patch_set.model_dump()
     # pr creation
     # pr_url = create_pull_request(
     #     repo_state,
@@ -132,7 +129,8 @@ def patch_generation(repo_key, issue, patch_plan):
     #     "diff": diff
     # }
 
-    return {
-        **final_patch_set.model_dump(),
-        "diff": diff
-    }
+    # return {
+    #     **final_patch_set.model_dump(),
+    #     "diff": diff
+    # }
+

@@ -1,4 +1,16 @@
+from models.patch_generator import Patch, PatchSet
 from patch_generation.validation.patch_file_builder import build_patched_file
+
+def normalize_patch_set(patch_set):
+    # if already an instance of PatchSet
+    if hasattr(patch_set, 'patches'):
+        return patch_set
+    
+    patches = []
+    for p in patch_set['patches']:
+        patches.append(Patch(**p))
+    
+    return PatchSet(patches=patches)
 
 def apply_patch_set_to_repo_state(repo_state, patch_set):
     
