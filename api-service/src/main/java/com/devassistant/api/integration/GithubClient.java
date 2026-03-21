@@ -65,6 +65,7 @@ public class GithubClient {
         return makeGetRequest(url);
     }
 
+    // provides all file for the latest commit(hence doesn't take any commit_sha)
     public Object getFiles(String owner, String repo) {
         String url = baseUrl + "/repos/" + owner + "/" + repo + "/contents";
         return makeGetRequest(url);

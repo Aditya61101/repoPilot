@@ -30,6 +30,11 @@ public class RepoController {
         return repoService.getFiles(owner, repo);
     }
 
+    @GetMapping("/v2/files")
+    public Object getFilesV2(@RequestParam String owner, @RequestParam String repo, @RequestParam String commitSha) {
+        return repoService.getAllFileData(owner, repo, commitSha);
+    }
+
     @GetMapping("/repo-tree")
     public List<Map<String, String>> getRepoTree(@RequestParam String owner, @RequestParam String repo) {
         return repoService.getRepoTree(owner, repo);

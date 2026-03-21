@@ -49,7 +49,7 @@ public class RepoService {
         return !lower.endsWith("package-lock.json") && !lower.endsWith("yarn.lock") && !lower.endsWith("pnpm-lock.yaml");
     }
 
-    private List<Map<String, String>> getAllFileData(String owner, String repo, String sha) {
+    public List<Map<String, String>> getAllFileData(String owner, String repo, String sha) {
         List<Map<String, String>> tree = githubClient.getRepoTreeBySHA(owner, repo, sha);
 
         List<String> paths = tree.stream()
