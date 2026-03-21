@@ -1,13 +1,10 @@
-import faiss
 from fastapi import APIRouter
 
 from models.request import EnsureIndexedRequest, IndexRequest, AnalyzeRequest, PatchPlannerRequest, PatchGeneratorRequest, StartPipelineRequest, ReviewPipelineRequest
 
-from rag.index_manager import index_exists,  save_index
-from rag.embedding import embed_texts
+from rag.index_manager import index_exists
 
-from rag.chunking.parallel_chunking import parallel_chunk
-
+from rag.main import index_entry_point
 from services.analysis_service import run_issue_analysis
 from services.patch_planning_service import patch_planning
 from services.patch_generation_service import patch_generation
@@ -23,28 +20,8 @@ def ensure_indexed(req:EnsureIndexedRequest):
 
 @router.post("/index")
 def index_repo(req:IndexRequest):
-    chunks = parallel_chunk(req.files)
-
-    texts = [f"FILE: {c['path']}\nLANGUAGE: {c['language']}\nSYMBOL: {c.get('symbol')}\n\n{c['content']}" for c in chunks]
-    
-    embeddings = embed_texts(texts)
-
-    print("embedding completed")
-    print("------------------------------------")
-
-    index = faiss.IndexFlatL2(embeddings.shape[1])
-    
-    # normalizes embeddings: converts vectors to unit length
-    faiss.normalize_L2(embeddings)
-    index.add(embeddings)
-
-    print("index added")
-    print("------------------------------------")
-
-    res = save_index(
-        repo=req.repo_key,
-        index=index,
-        chunks=chunks, 
+    res, chunks = index_entry_point(
+        repo_key=req.repo_key,
         commit_sha=req.commit_sha,
         files=req.files
     )
@@ -103,6 +80,5 @@ def invoke_start_pipeline(req:StartPipelineRequest):
 def invoke_review_pipeline(req:ReviewPipelineRequest):
     return review_pipeline(
         thread_id=req.thread_id,
-        approved=req.approved,
-        feedback=req.feedback
+        file_reviews=req.file_reviews
     )

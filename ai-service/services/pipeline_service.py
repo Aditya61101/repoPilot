@@ -1,4 +1,7 @@
 import uuid
+
+from fastapi import HTTPException
+from langgraph.types import Command
 from orchestration.builder import build_graph
 from orchestration.checkpoint import get_checkpointer
 
@@ -19,50 +22,53 @@ def start_pipeline(repo_key, issue, commit_sha):
         "commit_sha": commit_sha
     }
 
-    result = None
     for event in graph.stream(
         initial_state,
-        config=config,
-        interrupt_before=['review']
+        config=config
     ):
-        for node_name, node_output in event.items():
+        for node_name, _ in event.items():
             print(f"[NODE NAME] -> {node_name}")
-            if node_name == '__interrupt__':
-                break
-            result = node_output
-
-    return  {
+    state = graph.get_state(config)
+    if not state.next or state.next[0] != 'review':
+        raise HTTPException(500, detail=f'Pipeline ended unexpectedly at: {state.next}')
+    
+    return {
         "thread_id": thread_id,
-        "diff": result['diff']
+        "file_diffs": state.values['file_diffs']
     }
 
-def review_pipeline(thread_id, approved, feedback=None):
+def review_pipeline(thread_id, file_reviews):
 
     config = {
         "configurable": {
             "thread_id": thread_id
         }
     }
-
+    state = graph.get_state(config)
+    if state is None:
+        raise HTTPException(404, detail='Thread not found')
+    
+    if not state.next or state.next[0]!='review':
+        raise HTTPException(409, detail=f"Thread is not awaiting review (next={state.next})")
+    
     resume_state = {
-        "approved": approved,
-        "feedback": feedback
+        "file_reviews": file_reviews
     }
-    graph.update_state(
-        config,
-        resume_state
-    )
-    result = None
     for event in graph.stream(
-        None,
+        Command(resume=resume_state),
         config=config
     ):
-        for node_name, node_output in event.items():
+        for node_name, _ in event.items():
             print(f"[PIPELINE] -> {node_name}")
-            if node_name == '__interrupt__':
-                break
-            result = node_output
-
+    
+    final_state = graph.get_state(config)
+    # suspended again at review -> another rejection loop
+    if final_state.next and final_state.next[0] == 'review':
+        return {
+            "thread_id": thread_id,
+            "file_diffs": final_state.values['file_diffs']
+        }
+    # graph ran to END -> PR was opened
     return {
-        "pr_url": result['pr_url']
+        "pr_url": final_state.values['pr_url']
     }

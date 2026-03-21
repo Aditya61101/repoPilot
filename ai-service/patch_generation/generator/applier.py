@@ -2,6 +2,9 @@ from models.patch_generator import Patch, PatchSet
 from patch_generation.validation.patch_file_builder import build_patched_file
 
 def normalize_patch_set(patch_set):
+    """
+    Converts patch_set dictionary into an instance of PatchSet
+    """
     # if already an instance of PatchSet
     if hasattr(patch_set, 'patches'):
         return patch_set

@@ -11,8 +11,12 @@ class GraphState(TypedDict, total=False):
     patch_plan: list
 
     patch_set: dict
-    diff: str
+    patch_results: dict
 
-    approved: bool
-    feedback: Optional[str]
+    file_diffs: list
+
+    file_reviews: list
+    rejected_files: dict
+    attempt: int
+
     pr_url: Optional[str]

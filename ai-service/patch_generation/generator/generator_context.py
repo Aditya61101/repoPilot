@@ -49,29 +49,47 @@ def resolve_dependencies(step, patch_lookup):
     
     return visited
 
-def extract_dependency_context(step, patch_lookup, patch_results):
+def extract_dependency_context(step, patch_lookup, repo_state):
     context = []
 
     dep_ids = resolve_dependencies(step, patch_lookup)
 
     for dep_id in dep_ids:
-        patch_set = patch_results.get(dep_id)
-        
-        if not patch_set:
+        # patch_set = patch_results.get(dep_id)
+
+        file_path = patch_lookup[dep_id]['file']
+        content = repo_state[file_path]
+
+        if not content:
             continue
+        
+        context.append(
+            f"""
+            DEPENDENCY PATCH RESULT
+            PATCH: {dep_id}
+            FILE: {file_path}
 
-        for patch in patch_set.patches:
-            snippet = patch.replacement or patch.content or  ""
+            ```code
+            {content}
+            """
+        )
 
-            context.append(
-                f"""
-                DEPENDENCY PATCH RESULT
-                PATCH: {dep_id}
-                FILE: {patch.file}
 
-                ```code
-                {snippet}
-                """
-            )
+        # if not patch_set:
+        #     continue
+
+        # for patch in patch_set.patches:
+        #     snippet = patch.replacement or patch.content or  ""
+
+        #     context.append(
+        #         f"""
+        #         DEPENDENCY PATCH RESULT
+        #         PATCH: {dep_id}
+        #         FILE: {patch.file}
+
+        #         ```code
+        #         {snippet}
+        #         """
+        #     )
     
     return "\n".join(context)

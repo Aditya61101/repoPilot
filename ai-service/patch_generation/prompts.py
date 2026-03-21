@@ -147,13 +147,25 @@ Output rules:
 - Do NOT include markdown code fences.
 """
 
-def build_patch_generator_user_prompt(issue, step, full_file, dependency_context):
+def build_patch_generator_user_prompt(
+    issue, 
+    step, 
+    full_file, 
+    dependency_context,
+    feedback=None
+):
     # step_str = json.dumps(step, indent=2)
     # start_line = step['start_line']
     # end_line = step['end_line']
+    
     symbol = step.get('symbol', '')
-    # edit_strategy = step['edit_strategy']
-    # main_symbol_to_focus = f"Main Symbol to focus on: {symbol}" if symbol else ''
+    
+    feedback_from_user = f"""
+    PREVIOUS ATTEMPT FAILED FEEDBACK: 
+    {feedback}
+    Fix the issue considering this feedback.
+    Do not repeat the same mistake.
+    """ if feedback else ''
     
     return f"""
 ISSUE
@@ -171,6 +183,8 @@ TARGET SYMBOL
 DEPENDENCY CONTEXT
 ------------------
 {dependency_context}
+
+{feedback_from_user}
 
 TASK
 ----

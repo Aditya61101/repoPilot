@@ -1,24 +1,20 @@
 import os
-
-import faiss
 import requests
 
 from copy import deepcopy
-
-from models.patch_generator import PatchSet
+from langgraph.types import interrupt
 from orchestration.state import GraphState
 from patch_generation.generator.applier import apply_patch_set_to_repo_state, normalize_patch_set
-from patch_generation.generator.diff_generation import generate_repo_diff
-from rag.chunking.parallel_chunking import parallel_chunk
-from rag.embedding import embed_texts
-from rag.index_manager import get_index, index_exists, save_index
+from rag.index_manager import get_index, index_exists
+from rag.main import index_entry_point
 from services.analysis_service import run_issue_analysis
 from services.patch_generation_service import patch_generation
 from services.patch_planning_service import patch_planning
 from services.pr_service import create_pull_request
+from utils.language_detection import detect_language
+# from patch_generation.generator.diff_generation import generate_repo_diff
 
 def check_index_node(state:GraphState):
-    print("state in check index node: ", state)
     repo_key = state['repo_key']
     commit_sha = state['commit_sha']
 
@@ -34,28 +30,8 @@ def index_node(state:GraphState):
     response = requests.get(url=url)
     files = response.json()
 
-    chunks = parallel_chunk(files)
-
-    texts = [f"FILE: {c['path']}\nLANGUAGE: {c['language']}\nSYMBOL: {c.get('symbol')}\n\n{c['content']}" for c in chunks]
-    
-    embeddings = embed_texts(texts)
-
-    print("embedding completed")
-    print("------------------------------------")
-
-    index = faiss.IndexFlatL2(embeddings.shape[1])
-    
-    # normalizes embeddings: converts vectors to unit length
-    faiss.normalize_L2(embeddings)
-    index.add(embeddings)
-
-    print("index added")
-    print("------------------------------------")
-
-    res = save_index(
-        repo=repo_key,
-        index=index,
-        chunks=chunks, 
+    res, _ = index_entry_point(
+        repo_key=repo_key,
         commit_sha=commit_sha,
         files=files
     )
@@ -80,12 +56,14 @@ def plan_node(state:GraphState):
     return state
 
 def generate_node(state:GraphState):
-    state['patch_set'] = patch_generation(
+    result = patch_generation(
         state['repo_key'], 
         state['issue'],
         state['patch_plan'],
         state['commit_sha']
     )
+    state['patch_set'] = result['patch_set']
+    state['patch_results'] = result['patch_results']
     return state
 
 
@@ -106,22 +84,65 @@ def diff_node(state:GraphState):
         patch_set
     )
 
-    state['diff'] = generate_repo_diff(
-        original_repo_state,
-        patched_repo_state
-    )
+    file_diffs = []
+    for file_path in patched_repo_state:
+        original_code = original_repo_state[file_path]
+        updated_code = patched_repo_state[file_path]
+
+        if original_code != updated_code:
+            file_diffs.append({
+                "file": file_path,
+                "language": detect_language(file_path),
+                "original": "\n".join(original_code),
+                "modified": "\n".join(updated_code)
+            })
+    
+    state['file_diffs'] = file_diffs
+
     return state
 
 def review_node(state:GraphState):
-    return state
+    # return state
+    human_input = interrupt({
+        "file_diffs": state['file_diffs']
+    })
+
+    return {
+        **state,
+        "file_reviews": human_input['file_reviews']
+    }
 
 def regenerate_node(state:GraphState):
-    # TODO: use feedback
-    state['patch_set'] = patch_generation(
+    repo_index = get_index(
+        state['repo_key'], 
+        state['commit_sha']
+    )
+    repo_state = repo_index['repo_state']
+    updated_repo_state = deepcopy(repo_state)
+
+    patch_set = normalize_patch_set(state['patch_set'])
+    apply_patch_set_to_repo_state(
+        updated_repo_state,
+        patch_set
+    )
+    
+    feedback_map = {
+        f['file']: f['feedback'] for f in state['file_reviews'] if not f['approved']
+    }
+    target_files = set(feedback_map.keys())
+
+    result = patch_generation(
         state['repo_key'], 
         state['issue'],
-        state['patch_plan']
+        state['patch_plan'],
+        state['commit_sha'],
+        updated_repo_state,
+        target_files=target_files,
+        feedback_map=feedback_map,
+        existing_patch_results=state['patch_results']
     )
+    state['patch_set'] = result['patch_set']
+    state['patch_results'] = result['patch_results']
     return state
 
 def pr_node(state:GraphState):

@@ -42,53 +42,34 @@ SYSTEM_PROMPT = build_patch_generator_system_prompt()
 #     structured_llm = generator_llm.with_structured_output(PatchSet)
 #     return structured_llm.invoke(messages)
 
-def generate_batch_patches(issue, batch, patch_results, patch_lookup, repo_state):
-    # print("system prompt:", SYSTEM_PROMPT)
-    # results = []
-    # def run_step(step):
-    #     target_file_content = repo_state[step['file']]
-    #     dependency_context = extract_dependency_context(
-    #         step=step, 
-    #         patch_lookup=patch_lookup,patch_results=patch_results
-    #     )
-    #     user_prompt = build_patch_generator_user_prompt(
-    #         issue, 
-    #         step, 
-    #         target_file_content, 
-    #         dependency_context
-    #     )
-    #     return generate_patch_step(user_prompt=user_prompt)
-    
-    # with ThreadPoolExecutor(max_workers=4) as executor:
-    #     futures = [executor.submit(run_step, step) for step in batch]
-
-    #     for f in futures:
-    #         results.append(f.result())
-    # return results
-
-
-    # requests = []
-    # for step in batch:
-    #     requests.append([
-    #         SystemMessage(SYSTEM_PROMPT),
-    #         HumanMessage(user_prompt)
-    #     ])
-    # responses:List[PatchSet] = generator_llm.batch(requests)
-    # return responses
-
+def generate_batch_patches(
+    issue, 
+    batch, 
+    patch_lookup, 
+    repo_state,
+    feedback_map=None
+):
     messages = []
     for step in batch:
         target_file_content = "\n".join(repo_state[step['file']])
+        
+        feedback = None
+        if feedback_map:
+            feedback = feedback_map.get(step['file'])
+        
         # print("target file content: ", target_file_content)
         dependency_context = extract_dependency_context(
             step=step, 
-            patch_lookup=patch_lookup,patch_results=patch_results
+            patch_lookup=patch_lookup,
+            repo_state=repo_state
+            # patch_results=patch_results
         )
         user_prompt = build_patch_generator_user_prompt(
             issue, 
             step, 
             target_file_content, 
-            dependency_context
+            dependency_context,
+            feedback
         )
         messages.append([
             SystemMessage(SYSTEM_PROMPT),

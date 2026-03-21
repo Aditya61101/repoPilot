@@ -9,8 +9,7 @@ class StartPipelineRequest(BaseModel):
 
 class ReviewPipelineRequest(BaseModel):
     thread_id: str
-    approved: bool
-    feedback: Optional[str] = None
+    file_reviews: list
 
 class EnsureIndexedRequest(BaseModel):
     repo_key:str
