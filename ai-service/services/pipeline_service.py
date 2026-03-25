@@ -28,7 +28,9 @@ def start_pipeline(repo_key, issue, commit_sha):
     ):
         for node_name, _ in event.items():
             print(f"[NODE NAME] -> {node_name}")
+    
     state = graph.get_state(config)
+    
     if not state.next or state.next[0] != 'review':
         raise HTTPException(500, detail=f'Pipeline ended unexpectedly at: {state.next}')
     
