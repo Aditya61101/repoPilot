@@ -1,5 +1,7 @@
 package com.devassistant.api.service;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 
 import java.util.*;
@@ -11,6 +13,7 @@ import com.devassistant.api.integration.GithubClient;
 
 @Service
 public class RepoService {
+    private static final Logger log = LoggerFactory.getLogger(RepoService.class);
     private final GithubClient githubClient;
     private final ExecutorService githubExecutor;
     private final AIClient aiClient;
@@ -79,11 +82,46 @@ public class RepoService {
                 .toList();
     }
 
-    public Object getRepos(String owner) {
-        return githubClient.getRepos(owner);
+    public List<Map<String,String>> getRepos(String owner) {
+        List<Map<String,Object>> repos = (List<Map<String,Object>>) githubClient.getRepos(owner);
+        List<Map<String,String>> repoFinalResponse = new ArrayList<>();
+        for(Map<String, Object> repo:repos) {
+            Map<String, String> map = new HashMap<>();
+            map.put("name", String.valueOf(repo.get("name")));
+            map.put("id", String.valueOf(repo.get("id")));
+            repoFinalResponse.add(map);
+        }
+        return repoFinalResponse;
     }
 
-    public Object getIssues(String owner, String repo) { return githubClient.getIssues(owner, repo); }
+    public List<Map<String,Object>> getIssues(String owner, String repo) {
+        List<Map<String,Object>> issues = (List<Map<String,Object>>) githubClient.getIssues(owner, repo);
+        List<Map<String,Object>> issuesFinalResponse = new ArrayList<>();
+
+        for(Map<String, Object> issue: issues) {
+            if(issue.containsKey("pull_request")) continue;
+
+            Map<String, Object> map = new HashMap<>();
+            map.put("name", String.valueOf(issue.get("title")));
+            map.put("id", issue.get("number"));
+            map.put("body", String.valueOf(issue.get("body")));
+            map.put("state", issue.get("state"));
+            map.put("createdAt", issue.get("created_at"));
+
+            List<Map<String,Object>> labels = (List<Map<String,Object>>) issue.get("labels");
+
+            List<Map<String,String>> finalLabels = new ArrayList<>();
+            labels.forEach(label -> {
+                Map<String, String> labelMap = new HashMap<>();
+                labelMap.put("name", String.valueOf(label.get("name")));
+                labelMap.put("color", String.valueOf(label.get("color")));
+                finalLabels.add(labelMap);
+            });
+            map.put("labels", finalLabels);
+            issuesFinalResponse.add(map);
+        }
+        return issuesFinalResponse;
+    }
 
     public Object getFiles(String owner, String repo) { return githubClient.getFiles(owner, repo); }
 

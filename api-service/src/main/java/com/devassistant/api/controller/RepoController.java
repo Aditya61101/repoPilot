@@ -16,12 +16,12 @@ public class RepoController {
     }
 
     @GetMapping("/repos")
-    public Object getRepos(@RequestParam String owner) {
+    public List<Map<String,String>> getRepos(@RequestParam String owner) {
         return repoService.getRepos(owner);
     }
 
     @GetMapping("/issues")
-    public Object getIssues(@RequestParam String owner, @RequestParam String repo) {
+    public List<Map<String,Object>> getIssues(@RequestParam String owner, @RequestParam String repo) {
         return repoService.getIssues(owner, repo);
     }
 
