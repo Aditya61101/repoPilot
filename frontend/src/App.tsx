@@ -1,3 +1,4 @@
+import { ThemeProvider } from 'next-themes';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { createBrowserRouter, RouterProvider } from 'react-router'
 // pages
@@ -12,7 +13,9 @@ function App() {
   ]);
   return (
     <QueryClientProvider client={queryClient}>
-      <RouterProvider router={router} />
+      <ThemeProvider attribute="class" defaultTheme="system" enableSystem>
+        <RouterProvider router={router} />
+      </ThemeProvider>
     </QueryClientProvider>
   )
 }
