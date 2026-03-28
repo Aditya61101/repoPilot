@@ -94,15 +94,17 @@ public class RepoService {
         return repoFinalResponse;
     }
 
-    public List<Map<String,Object>> getIssues(String owner, String repo) {
+    public Map<String,Object> getIssues(String owner, String repo) {
         List<Map<String,Object>> issues = (List<Map<String,Object>>) githubClient.getIssues(owner, repo);
-        List<Map<String,Object>> issuesFinalResponse = new ArrayList<>();
+        String sha = githubClient.getLatestCommitSha(owner, repo);
 
+        List<Map<String,Object>> issuesFinalResponse = new ArrayList<>();
         for(Map<String, Object> issue: issues) {
+            // not considering PR as issues
             if(issue.containsKey("pull_request")) continue;
 
             Map<String, Object> map = new HashMap<>();
-            map.put("name", String.valueOf(issue.get("title")));
+            map.put("title", String.valueOf(issue.get("title")));
             map.put("id", issue.get("number"));
             map.put("body", String.valueOf(issue.get("body")));
             map.put("state", issue.get("state"));
@@ -120,7 +122,10 @@ public class RepoService {
             map.put("labels", finalLabels);
             issuesFinalResponse.add(map);
         }
-        return issuesFinalResponse;
+        Map<String, Object> response = new HashMap<>();
+        response.put("issues", issuesFinalResponse);
+        response.put("commitSHA", sha);
+        return response;
     }
 
     public Object getFiles(String owner, String repo) { return githubClient.getFiles(owner, repo); }

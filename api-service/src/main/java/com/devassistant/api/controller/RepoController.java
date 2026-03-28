@@ -21,7 +21,7 @@ public class RepoController {
     }
 
     @GetMapping("/issues")
-    public List<Map<String,Object>> getIssues(@RequestParam String owner, @RequestParam String repo) {
+    public Map<String,Object> getIssues(@RequestParam String owner, @RequestParam String repo) {
         return repoService.getIssues(owner, repo);
     }
 
