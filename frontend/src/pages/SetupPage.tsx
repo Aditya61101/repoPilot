@@ -15,6 +15,7 @@ import { LoaderCircle } from "lucide-react";
 import { fetchRepos } from "@/api/repos";
 import { fetchIssues } from "@/api/issues";
 import { ThemeToggle } from "@/components/shared/ThemeToggle";
+import { useNavigate } from "react-router";
 
 const SetupPage = () => {
     // UI states
@@ -29,6 +30,8 @@ const SetupPage = () => {
     // loading states
     const [isFetchingRepos, setIsFetchingRepos] = useState(false);
     const [isFetchingIssues, setIsFetchingIssues] = useState(false);
+
+    const navigate = useNavigate();
 
     const filteredIssues = useMemo(() => {
         if(searchQuery.trim() === '') return issues || [];
@@ -86,7 +89,10 @@ const SetupPage = () => {
             "issue": issueDetails,
         }
         console.log(payload);
-
+        const response = {
+            "thread_id": "mock-thread-id-123"
+        }
+        navigate(`/review?thread_id=${response.thread_id}&issue=${encodeURIComponent(selectedIssue.title)}`);
 
     }
 

@@ -1,4 +1,5 @@
 from fastapi import APIRouter
+from fastapi.responses import StreamingResponse
 
 from models.request import EnsureIndexedRequest, IndexRequest, AnalyzeRequest, PatchPlannerRequest, PatchGeneratorRequest, StartPipelineRequest, ReviewPipelineRequest
 
@@ -8,7 +9,7 @@ from rag.main import index_entry_point
 from services.analysis_service import run_issue_analysis
 from services.patch_planning_service import patch_planning
 from services.patch_generation_service import patch_generation
-from services.pipeline_service import review_pipeline, start_pipeline
+from services.pipeline_service import review_pipeline, review_pipeline_v2, start_pipeline, start_pipeline_v2, stream_pipeline
 
 router = APIRouter(prefix="/ai", tags=['AI'])
 
@@ -81,4 +82,23 @@ def invoke_review_pipeline(req:ReviewPipelineRequest):
     return review_pipeline(
         thread_id=req.thread_id,
         file_reviews=req.file_reviews
+    )
+
+@router.post("/v2/start")
+def invoke_start_pipeline_v2(body: StartPipelineRequest):
+    return start_pipeline_v2(
+        repo_key=body.repo_key,
+        issue=body.issue,
+        commit_sha=body.commit_sha,
+    )
+
+@router.get("/v2/{thread_id}/stream")
+async def stream(thread_id: str) -> StreamingResponse:
+    return await stream_pipeline(thread_id)
+
+@router.post("/v2/{thread_id}/review")
+def review(req: ReviewPipelineRequest):
+    return review_pipeline_v2(
+        thread_id=req.thread_id,
+        file_reviews=req.file_reviews,
     )

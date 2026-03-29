@@ -37,21 +37,28 @@ export function IssuePreview({ issue }: { issue: Issue | null }) {
                     </div>
                     {/* Labels */}
                     <div className="flex flex-wrap gap-1">
-                        {issue.labels?.map((label) => (
-                            <span
-                                key={label.name}
-                                style={{ backgroundColor: `#${label.color}` } as React.CSSProperties}
-                                className="px-2 py-0.5 rounded text-xs font-sans text-shadow-white"
-                            >
-                                {label.name}
-                            </span>
-                        ))}
+                        {issue.labels?.map((label) => {
+                            const bg = `#${label.color}`
+                            return (
+                                <span
+                                    key={label.name}
+                                    style={{
+                                        backgroundColor: `#${label.color}33`,
+                                        color: bg,
+                                        border: `1px solid #${label.color}66`
+                                    }}
+                                    className="px-2 py-0.5 rounded-full text-xs font-sans"
+                                >
+                                    {label.name}
+                                </span>
+                            )
+                        })}
                     </div>
                 </div>
             </div>
             {/* Body */}
             <div className="flex-1 overflow-y-auto p-4">
-                {issue.body!='null' ? (
+                {issue.body != 'null' ? (
                     <p className="text-sm text-foreground font-sans whitespace-pre-wrap leading-relaxed">
                         {issue.body}
                     </p>

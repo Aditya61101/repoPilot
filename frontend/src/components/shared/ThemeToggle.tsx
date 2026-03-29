@@ -19,7 +19,7 @@ export function ThemeToggle() {
                     onClick={() => setTheme(value)}
                     title={label}
                     className={cn(
-                        "p-1.5 rounded-md transition-colors",
+                        "p-1.5 rounded-md transition-colors cursor-pointer",
                         theme === value
                             ? "bg-primary text-white"
                             : "text-muted-foreground hover:bg-muted"
