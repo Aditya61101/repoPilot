@@ -92,11 +92,12 @@ def invoke_start_pipeline_v2(body: StartPipelineRequest):
         commit_sha=body.commit_sha,
     )
 
-@router.get("/v2/{thread_id}/stream")
+# takes thread_id as query param
+@router.get("/v2/stream")
 async def stream(thread_id: str) -> StreamingResponse:
     return await stream_pipeline(thread_id)
 
-@router.post("/v2/{thread_id}/review")
+@router.post("/v2/review")
 def review(req: ReviewPipelineRequest):
     return review_pipeline_v2(
         thread_id=req.thread_id,

@@ -1,14 +1,15 @@
 /* eslint-disable @typescript-eslint/no-unused-vars */
 import React, { useState, useMemo, useCallback, Suspense } from 'react'
 import { ChevronDown, ArrowLeft, CheckCircle2, AlertCircle, GitPullRequest } from 'lucide-react'
-// import {DiffEditor} from '@monaco-editor/react'
 import { Button } from '@/components/ui/button'
 import { Textarea } from '@/components/ui/textarea'
 import { cn } from '@/lib/utils'
-import { useSearchParams } from 'react-router'
+import { useNavigate, useSearchParams } from 'react-router'
 import type { FileDiff, FileReview, PageState, PipelineNode, SSEEvent } from '@/interfaces/Review'
 import { useSSEStream } from '@/hooks/useSSEStream'
 import { ThemeToggle } from '@/components/shared/ThemeToggle'
+import { aiClient } from '@/api/aiClient'
+import { submitReview } from '@/api/aiPipeline'
 
 // Mock data
 const INITIAL_NODES: PipelineNode[] = [
@@ -39,12 +40,13 @@ function ReviewHeader({ pageState, issueTitle }: { pageState: PageState; issueTi
     const isRunning = pageState === 'running' || pageState === 'resuming'
     const isDotGreen = pageState === 'complete'
     const isDotGray = pageState === 'pending_review'
+    const navigate = useNavigate();
 
     return (
         <header className="fixed top-0 left-0 right-0 h-16 border-b border-border bg-background/95 backdrop-blur-sm flex items-center px-6 z-40">
-            <button className="p-2 hover:bg-muted rounded-md transition-colors mr-4">
+            <Button variant={"ghost"} className="p-2 hover:bg-muted hover:cursor-pointer  rounded-md transition-colors mr-4" onClick={() => navigate(-1)}>
                 <ArrowLeft className="w-5 h-5" />
-            </button>
+            </Button>
 
             <div className="flex flex-1 items-center gap-2">
                 <h1 className="text-sm font-medium text-muted-foreground">
@@ -60,61 +62,16 @@ function ReviewHeader({ pageState, issueTitle }: { pageState: PageState; issueTi
                     )}
                 />
             </div>
-            <ThemeToggle/>
+            <ThemeToggle />
         </header>
     )
 }
 
-function StatusPulse() {
+function StatusPulse({ message, state }: { message: string, state: PageState }) {
     return (
-        <div className="flex flex-col items-center justify-center gap-3">
+        <div className="flex flex-col items-center justify-center gap-3 w-full">
             <div className="w-3 h-3 bg-primary rounded-full animate-pulse" />
-            <p className="text-sm text-muted-foreground animate-pulse">Analyzing your issue...</p>
-        </div>
-    )
-}
-
-function PipelineStepper({
-    nodes,
-    isSidebar,
-}: {
-    nodes: PipelineNode[]
-    isSidebar: boolean
-}) {
-    return (
-        <div
-            className={cn(
-                'flex transition-all duration-500',
-                isSidebar
-                    ? 'w-44 border-r border-border px-4 py-6 flex-col gap-6'
-                    : 'flex-1 items-center justify-center'
-            )}
-        >
-            {isSidebar ? (
-                <div className="space-y-4">
-                    {nodes.map((node) => (
-                        <div key={node.name} className="flex items-start gap-3">
-                            <div className="mt-1 shrink-0">
-                                {node.status === 'complete' && (
-                                    <CheckCircle2 className="w-5 h-5 text-green-500" />
-                                )}
-                                {node.status === 'running' && (
-                                    <div className="w-5 h-5 border-2 border-primary border-t-transparent rounded-full animate-spin" />
-                                )}
-                                {node.status === 'pending' && (
-                                    <div className="w-5 h-5 border-2 border-muted-foreground rounded-full" />
-                                )}
-                                {node.status === 'failed' && (
-                                    <AlertCircle className="w-5 h-5 text-destructive" />
-                                )}
-                            </div>
-                            <span className="font-mono text-xs text-muted-foreground">{node.name}</span>
-                        </div>
-                    ))}
-                </div>
-            ) : (
-                <StatusPulse />
-            )}
+            <p className="text-sm text-muted-foreground animate-pulse">{message}</p>
         </div>
     )
 }
@@ -133,7 +90,6 @@ function DiffFileBlock({
     onReviewChange,
 }: DiffFileBlockProps) {
     const [isExpanded, setIsExpanded] = useState(index === 0)
-    //   const filename = fileDiff.file.split('/').pop() || fileDiff.file
     const displayFilename = fileDiff.file.length > 30
         ? '...' + fileDiff.file.slice(-27)
         : fileDiff.file
@@ -142,22 +98,22 @@ function DiffFileBlock({
         fileDiff.modified.split('\n').length
     )
 
-    const isAccepted = fileReview?.accepted ?? true
-    const isRejected = fileReview?.accepted === false
+    const isAccepted = fileReview?.approved ?? true
+    const isRejected = fileReview?.approved === false
 
     const LazyDiffEditor = React.lazy(() => import('@monaco-editor/react').then(module => ({ default: module.DiffEditor })));
-    
+
     return (
         <div
             className={cn(
-                'border border-border rounded-lg overflow-hidden transition-colors',
+                'border border-border rounded-lg  transition-colors',
                 isAccepted && 'border-l-4 border-l-green-500',
                 isRejected && 'border-l-4 border-l-destructive'
             )}
         >
-            <Button
+            <button
                 onClick={() => setIsExpanded(!isExpanded)}
-                className="w-full px-4 py-3 flex items-center justify-between hover:bg-muted transition-colors"
+                className="w-full px-4 py-3 flex items-center justify-between hover:bg-muted hover:cursor-pointer transition-colors"
             >
                 <div className="flex items-center gap-2 min-w-0">
                     <span className="text-lg">📄</span>
@@ -168,11 +124,10 @@ function DiffFileBlock({
                 <ChevronDown
                     className={cn('w-4 h-4 transition-transform shrink-0', isExpanded && 'rotate-180')}
                 />
-            </Button>
+            </button>
 
             {isExpanded && (
                 <div className="border-t border-border">
-                    <div className="bg-muted/50 p-4">
                     <Suspense fallback={<div className='animate-pulse text-muted-foreground'>Loading editor...</div>}>
                         <LazyDiffEditor
                             height={Math.min(500, Math.max(200, lineCount * 19 + 40))}
@@ -194,38 +149,37 @@ function DiffFileBlock({
                                 padding: { top: 8, bottom: 8 },
                             }}
                         />
-                    </Suspense>
-                    </div>
+                        <div className="p-4 border-t border-border space-y-3">
+                            <Textarea
+                                placeholder="Any issues with this file? (optional)"
+                                value={fileReview?.feedback || ''}
+                                onChange={(e) => onReviewChange(e.target.value, isAccepted)}
+                                className="text-sm"
+                            />
 
-                    <div className="p-4 border-t border-border space-y-3">
-                        <Textarea
-                            placeholder="Any issues with this file? (optional)"
-                            value={fileReview?.feedback || ''}
-                            onChange={(e) => onReviewChange(e.target.value, isAccepted)}
-                            className="text-sm"
-                        />
-
-                        <div className="flex gap-2">
-                            <Button
-                                variant={isRejected ? 'default' : 'outline'}
-                                size="sm"
-                                onClick={() => onReviewChange(fileReview?.feedback || '', false)}
-                                className={cn(
-                                    isRejected && 'bg-destructive hover:bg-destructive/90 text-white border-destructive'
-                                )}
-                            >
-                                ✗ Reject file
-                            </Button>
-                            <Button
-                                variant={isAccepted ? 'default' : 'outline'}
-                                size="sm"
-                                onClick={() => onReviewChange(fileReview?.feedback || '', true)}
-                                className={cn(isAccepted && 'bg-primary hover:bg-primary/90 text-white')}
-                            >
-                                ✓ Accept
-                            </Button>
+                            <div className="flex gap-2">
+                                <Button
+                                    variant={isRejected ? 'default' : 'outline'}
+                                    size="sm"
+                                    onClick={() => onReviewChange(fileReview?.feedback || '', false)}
+                                    className={cn(
+                                        isRejected && 'bg-destructive hover:bg-destructive/90 text-white border-destructive'
+                                    )}
+                                >
+                                    ✗ Reject file
+                                </Button>
+                                <Button
+                                    variant={isAccepted ? 'default' : 'outline'}
+                                    size="sm"
+                                    onClick={() => onReviewChange(fileReview?.feedback || '', true)}
+                                    className={cn(isAccepted && 'bg-primary hover:bg-primary/90 text-white')}
+                                >
+                                    ✓ Accept
+                                </Button>
+                            </div>
                         </div>
-                    </div>
+                    </Suspense>
+
                 </div>
             )}
         </div>
@@ -279,7 +233,9 @@ function ReviewFooter({
     )
 }
 
-function PROpenedCard({ prURL }: { prURL: string }) {
+function PROpenedCard({ prURL }: { prURL: string | null }) {
+    if(!prURL) return null;
+
     return (
         <div className="flex-1 flex items-center justify-center p-6">
             <div className="max-w-md text-center space-y-4">
@@ -310,58 +266,59 @@ export default function ReviewPage() {
     const threadId = searchParams.get('thread_id')
     const issueTitle = searchParams.get('issue') ?? 'Unknown Issue'
 
-    const [pageState, setPageState] = useState<PageState>('pending_review')
+    const [pageState, setPageState] = useState<PageState>('running')
     const [prUrl, setPrUrl] = useState<string | null>(null)
     const [streamEnabled, setStreamEnabled] = useState(true)
     const [fileDiffs, setFileDiffs] = useState<FileDiff[]>(MOCK_FILE_DIFFS)
     const [fileReviews, setFileReviews] = useState<Record<string, FileReview>>({})
-    const [nodes, setNodes] = useState<PipelineNode[]>(INITIAL_NODES)
+    const [statusMessage, setStatusMessage] = useState('Starting pipeline...')
+    // const [nodes, setNodes] = useState<PipelineNode[]>(INITIAL_NODES)
 
-    // const handleSSEEvent = useCallback((event: SSEEvent) => {
-    //     switch (event.type) {
-    //         case 'node_complete':
-    //             // mark node as complete in stepper
-    //             setNodes((prev) =>
-    //                 prev.map((n) =>
-    //                     n.name === event.node
-    //                         ? { ...n, status: 'complete' }
-    //                         : n.status === 'pending'
-    //                         ? { ...n, status: 'running' }  // next node starts
-    //                         : n
-    //                 )
-    //             )
-    //             break
+    const handleSSEEvent = useCallback((event: SSEEvent) => {
+        if (event.message) setStatusMessage(event.message)
+        switch (event.type) {
+            case 'node_running':
+                setPageState('running')
+                // mark node as complete in stepper
+                // setNodes((prev) =>
+                //     prev.map((n) =>
+                //         n.name === event.node
+                //             ? { ...n, status: 'complete' }
+                //             : n.status === 'pending'
+                //             ? { ...n, status: 'running' }  // next node starts
+                //             : n
+                //     )
+                // )
+                break
 
-    //         case 'pending_review':
-    //             setFileDiffs(event.file_diffs ?? [])
-    //             setFileReviews({})              // reset reviews for new cycle
-    //             setPageState('pending_review')
-    //             setStreamEnabled(false)         // close stream, wait for user
-    //             break
+            case 'pending_review':
+                setFileDiffs(event.file_diffs ?? [])
+                setFileReviews({})
+                setPageState('pending_review')
+                setStreamEnabled(false)
+                break
 
-    //         case 'complete':
-    //             setPrUrl(event.pr_url ?? null)
-    //             setPageState('complete')
-    //             setStreamEnabled(false)
-    //             break
-    //     }
-    // }, [])
+            case 'complete':
+                setPrUrl(event.pr_url ?? null)
+                setPageState('complete')
+                setStreamEnabled(false)
+                break
+        }
+    }, [])
 
-    // useSSEStream(threadId, handleSSEEvent, streamEnabled)
+    useSSEStream(threadId, handleSSEEvent, streamEnabled)
 
     const showDiff = pageState === 'pending_review'
-    const isSidebar = pageState === 'pending_review' || pageState === 'complete' || pageState === 'running'
+    const showStatusPulse = pageState === 'running' || pageState === 'resuming'
+    const showPROpened = pageState === 'complete' && prUrl
+    // const isSidebar = pageState === 'pending_review' || pageState === 'complete' || pageState === 'running'
 
     const handleSubmitReview = async () => {
         if (!threadId) return
         setPageState('resuming')
         setFileDiffs([])
 
-        await fetch(`/api/run/${threadId}/review`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ file_reviews: fileReviews }),
-        })
+        await submitReview(threadId, Object.values(fileReviews))
 
         // re-open stream for next cycle
         setStreamEnabled(true)
@@ -375,11 +332,11 @@ export default function ReviewPage() {
     const handleFileReviewChange = (
         filename: string,
         feedback: string,
-        accepted: boolean
+        approved: boolean
     ) => {
         setFileReviews((prev) => ({
             ...prev,
-            [filename]: { accepted, feedback },
+            [filename]: {file:filename, approved, feedback },
         }))
     }
 
@@ -388,23 +345,51 @@ export default function ReviewPage() {
             <ReviewHeader pageState={pageState} issueTitle={issueTitle} />
 
             <div className="flex flex-col h-[calc(100vh-4rem)]">
-                <div className="flex flex-1 overflow-hidden">
-                    <PipelineStepper nodes={nodes} isSidebar={isSidebar} />
+                <div className="flex flex-1 relative">
+                    {/* <PipelineStepper nodes={nodes} /> */}
 
-                    {showDiff && (
+                    <div className={cn(
+                        "absolute inset-0 flex items-center justify-center transition-all duration-500",
+                        showStatusPulse
+                            ? "opacity-100 pointer-events-auto"
+                            : "opacity-0 pointer-events-none"
+                    )}>
+                        <StatusPulse message={statusMessage} state={pageState} />
+                    </div>
+
+                    {/* DiffPanel — visible when pending_review */}
+                    <div className={cn(
+                        "absolute inset-0 transition-all duration-500",
+                        showDiff
+                            ? "opacity-100 pointer-events-auto translate-y-0"
+                            : "opacity-0 pointer-events-none translate-y-4"
+                    )}>
                         <DiffPanel
                             fileDiffs={fileDiffs}
                             fileReviews={fileReviews}
                             onFileReviewChange={handleFileReviewChange}
                         />
-                    )}
+                    </div>
 
-                    {pageState === 'complete' && prUrl && <PROpenedCard prURL={prUrl} />}
+                    {/* PROpenedCard — visible when complete */}
+                    <div className={cn(
+                        "absolute inset-0 flex items-center justify-center transition-all duration-500",
+                        showPROpened
+                            ? "opacity-100 pointer-events-auto translate-y-0"
+                            : "opacity-0 pointer-events-none translate-y-4"
+                    )}>
+                        <PROpenedCard prURL={prUrl} />
+                    </div>
                 </div>
 
-                {pageState === 'pending_review' && (
+                <div className={cn(
+                    "transition-all duration-500",
+                    pageState === 'pending_review'
+                        ? "opacity-100 pointer-events-auto"
+                        : "opacity-0 pointer-events-none h-0 overflow-hidden"
+                )}>
                     <ReviewFooter onSubmit={handleSubmitReview} disabled={isSubmitDisabled} />
-                )}
+                </div>
             </div>
         </div>
     )

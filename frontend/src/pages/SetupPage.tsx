@@ -16,6 +16,7 @@ import { fetchRepos } from "@/api/repos";
 import { fetchIssues } from "@/api/issues";
 import { ThemeToggle } from "@/components/shared/ThemeToggle";
 import { useNavigate } from "react-router";
+import { startPipeline } from "@/api/aiPipeline";
 
 const SetupPage = () => {
     // UI states
@@ -81,18 +82,23 @@ const SetupPage = () => {
 
     const handleStartPipeline = async () => {
         if (!selectedRepoName || !selectedIssue) return;
+
         console.log("selected issue: ", selectedIssue);
         const issueDetails = selectedIssue.body ? `${selectedIssue.title}: ${selectedIssue.body}` : selectedIssue.title;
+        
         const payload = {
             "repo_key": `${username}/${selectedRepoName}`,
             "commit_sha": commitSHA,
             "issue": issueDetails,
         }
         console.log(payload);
-        const response = {
-            "thread_id": "mock-thread-id-123"
+        try {
+            const response = await startPipeline(payload);
+            await navigate(`/review?thread_id=${response.thread_id}&issue=${encodeURIComponent(selectedIssue.title)}`);
+        } catch (error) {
+            console.error('error while posting ', error);
+            
         }
-        navigate(`/review?thread_id=${response.thread_id}&issue=${encodeURIComponent(selectedIssue.title)}`);
 
     }
 

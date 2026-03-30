@@ -2,8 +2,9 @@ export type PageState = 'running' | 'pending_review' | 'resuming' | 'complete'
 export type NodeStatus = 'pending' | 'running' | 'complete' | 'failed'
 
 export type SSEEvent = {
-    type: 'node_complete' | 'pending_review' | 'complete'
+    type: 'node_running' | 'pending_review' | 'complete'
     node?: string
+    message?: string
     file_diffs?: FileDiff[]
     pr_url?: string
 }
@@ -21,6 +22,7 @@ export interface FileDiff {
 }
 
 export interface FileReview {
-    accepted: boolean
+    file: string
+    approved: boolean
     feedback: string
 }

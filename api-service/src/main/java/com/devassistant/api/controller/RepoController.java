@@ -25,14 +25,14 @@ public class RepoController {
         return repoService.getIssues(owner, repo);
     }
 
-    @GetMapping("/files")
-    public Object getFiles(@RequestParam String owner, @RequestParam String repo) {
-        return repoService.getFiles(owner, repo);
-    }
-
     @GetMapping("/v2/files")
     public Object getFilesV2(@RequestParam String owner, @RequestParam String repo, @RequestParam String commitSha) {
         return repoService.getAllFileData(owner, repo, commitSha);
+    }
+
+    @GetMapping("/files")
+    public Object getFiles(@RequestParam String owner, @RequestParam String repo) {
+        return repoService.getFiles(owner, repo);
     }
 
     @GetMapping("/repo-tree")
