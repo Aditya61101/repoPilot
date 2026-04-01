@@ -1,7 +1,5 @@
 package com.devassistant.api.service;
 
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 
 import java.util.*;
@@ -13,7 +11,6 @@ import com.devassistant.api.integration.GithubClient;
 
 @Service
 public class RepoService {
-    private static final Logger log = LoggerFactory.getLogger(RepoService.class);
     private final GithubClient githubClient;
     private final ExecutorService githubExecutor;
     private final AIClient aiClient;

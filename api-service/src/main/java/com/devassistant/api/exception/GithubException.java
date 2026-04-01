@@ -1,6 +1,5 @@
 package com.devassistant.api.exception;
 
-import org.springframework.http.HttpStatus;
 import org.springframework.http.HttpStatusCode;
 
 public class GithubException extends RuntimeException {

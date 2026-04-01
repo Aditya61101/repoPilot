@@ -4,5 +4,8 @@ spring:
 github:
   base-url: https://api.github.com
   token: ${GITHUB_TOKEN}
+  client-id: ${GITHUB_CLIENT_ID}
+  client-secret: ${GITHUB_CLIENT_SECRET}
+  redirect-url: http://localhost:8080/auth/github/callback
 ai-service:
   base-url: http://localhost:8000/ai
