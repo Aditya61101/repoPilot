@@ -14,4 +14,21 @@ export default defineConfig({
       "@": path.resolve(__dirname, "./src"),
     },
   },
+  server: {
+  proxy: {
+    '/ai': {
+      target: 'http://localhost:8000/ai',
+      changeOrigin: true,
+      rewrite: (path) => path.replace(/^\/ai/, ''), // Keep '/ai' prefix
+      configure: (proxy) => {
+        proxy.on('error', (err) => {
+          console.error('Proxy error:', err);
+        });
+        proxy.on('proxyReq', (proxyReq, req) => {
+          console.log('SSE Request sent to target:', req.url);
+        });
+      },
+    },
+  },
+},   
 })

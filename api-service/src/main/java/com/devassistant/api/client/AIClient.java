@@ -11,7 +11,7 @@ import java.util.Map;
 public class AIClient {
     private final WebClient webClient;
 
-    public AIClient(WebClient.Builder builder, @Value("${ai-service.base-url}") String aiBaseURL) {
+    public AIClient(WebClient.Builder builder, @Value("${ai.base-url}") String aiBaseURL) {
         System.out.println("ai-service base url is: "+ aiBaseURL);
         webClient = builder.baseUrl(aiBaseURL).build();
     }

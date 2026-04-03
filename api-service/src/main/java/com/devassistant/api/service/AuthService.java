@@ -1,16 +1,24 @@
 package com.devassistant.api.service;
 
+import com.devassistant.api.dto.UserResponse;
+import com.devassistant.api.entity.User;
+import com.devassistant.api.repository.UserRepository;
+
+import jakarta.annotation.PostConstruct;
+import lombok.RequiredArgsConstructor;
+
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.http.ResponseCookie;
 import org.springframework.stereotype.Service;
 import org.springframework.web.reactive.function.client.WebClient;
 import org.springframework.web.util.UriComponentsBuilder;
 
-import java.util.Map;
-import java.util.Set;
-import java.util.UUID;
+import java.time.Duration;
+import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 
 @Service
+@RequiredArgsConstructor
 public class AuthService {
     @Value("${github.redirect-url}")
     private String redirectUri;
@@ -22,16 +30,20 @@ public class AuthService {
     private String clientSecret;
 
     private final Set<String> stateStore = ConcurrentHashMap.newKeySet();
-    private final WebClient webClient;
+    private WebClient webClient;
 
-    // SpringBoot won't automatically inject WebClient, we either need a @Config or use builder.build
-    public AuthService(WebClient.Builder builder) {
-        this.webClient = builder.build();
+    private final WebClient.Builder webClientBuilder;
+    private final JWTService jwtService;
+    private final UserRepository userRepository;
+
+    @PostConstruct
+    public void init() {
+        this.webClient = webClientBuilder.build();
     }
 
     private String exchangeCodeForToken(String code) {
-        System.out.println("CLIENT ID: "+ clientID);
-        System.out.println("CLIENT SECRET: "+clientSecret);
+        // System.out.println("CLIENT ID: "+ clientID);
+        // System.out.println("CLIENT SECRET: "+clientSecret);
 
         Map response = webClient.post()
                 .uri("https://github.com/login/oauth/access_token")
@@ -47,10 +59,30 @@ public class AuthService {
                 .block();
 
         System.out.println("FULL RESPONSE: " + response);
+        if(response==null || response.get("access_token")==null) {
+            throw new RuntimeException("Token exchange failed: ");
+        }
         return (String) response.get("access_token");
     }
 
-    private Map<String,Object> fetchGithubUser(String token) {
+    private User saveOrUpdateUser(Map<String, Object> user, String token) {
+        String githubId = String.valueOf(user.get("id"));
+        String username = (String) user.get("login");
+        Optional<User> existing = userRepository.findByGithubId(githubId);
+
+        if(existing.isPresent()) {
+            User existingUser = existing.get();
+            existingUser.setAccessToken(token);
+            return userRepository.save(existingUser);
+        }
+        User newUser = new User();
+        newUser.setUsername(username);
+        newUser.setAccessToken(token);
+        newUser.setGithubId(githubId);
+        return userRepository.save(newUser);
+    }
+
+    private Map fetchGithubUser(String token) {
         return webClient.get()
                 .uri("https://api.github.com/user")
                 .header("Authorization", "Bearer "+token)
@@ -75,18 +107,27 @@ public class AuthService {
                 .toUriString();
     }
 
-    public Map<String, Object> handleCallback(String code, String state) {
+    public String handleCallback(String code, String state) {
         // removing after validation
         if(!stateStore.remove(state)) {
             throw new RuntimeException("Invalid state");
         }
 
         String accessToken = exchangeCodeForToken(code);
-        Map<String, Object> user = fetchGithubUser(accessToken);
+        Map<String, Object> githubUser = fetchGithubUser(accessToken);
+        User user = saveOrUpdateUser(githubUser, accessToken);
 
-        return Map.of(
-                "token", accessToken,
-                "user", user
+        // generate jwt and return
+        return jwtService.generate(user.getId());
+    }
+
+    public UserResponse handleMe(String token) {
+        Long userId = jwtService.parse(token);
+        User user = userRepository.findById(userId).orElseThrow();
+        return new UserResponse(
+                user.getId(),
+                user.getUsername(),
+                user.getGithubId()
         );
     }
 }
