@@ -1,5 +1,6 @@
 package com.devassistant.api.integration;
 
+import lombok.RequiredArgsConstructor;
 import com.devassistant.api.exception.GithubException;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.*;
@@ -10,15 +11,14 @@ import org.springframework.web.client.RestTemplate;
 import java.util.*;
 
 @Service
+@RequiredArgsConstructor
 public class GithubClient {
-    @Value("${github.token}")
-    private String token;
 
     @Value("${github.base-url}")
     private String baseUrl;
 
     private final RestTemplate restTemplate = new RestTemplate();
-
+    
     private List<Map<String, String>> extractRepoTree(Map<String,Object> treeResponse) {
         List<Map<String, String>> result = new ArrayList<>();
         List<Map<String,Object>> tree = (List<Map<String,Object>>) treeResponse.get("tree");
@@ -35,7 +35,7 @@ public class GithubClient {
         return result;
     }
 
-    private Object makeGetRequest(String url) {
+    private Object makeGetRequest(String url, String token) {
         HttpHeaders headers = new HttpHeaders();
         headers.set("Authorization", "Bearer "+ token);
         /* tells what kind of response the API would accept */
@@ -55,42 +55,42 @@ public class GithubClient {
         }
     }
 
-    public Object getRepos(String owner) {
-        String url = baseUrl + "/users/" + owner + "/repos";
-        return makeGetRequest(url);
+    public Object getRepos(String token) {
+        String url = baseUrl + "/user/" +  "/repos";
+        return makeGetRequest(url, token);
     }
 
-    public Object getIssues(String owner, String repo) {
+    public Object getIssues(String owner, String repo, String token) {
         String url = baseUrl + "/repos/" + owner + "/" + repo + "/issues";
-        return makeGetRequest(url);
+        return makeGetRequest(url, token);
     }
 
     // provides all file for the latest commit(hence doesn't take any commit_sha)
-    public Object getFiles(String owner, String repo) {
+    public Object getFiles(String owner, String repo, String token) {
         String url = baseUrl + "/repos/" + owner + "/" + repo + "/contents";
-        return makeGetRequest(url);
+        return makeGetRequest(url, token);
     }
 
-    public List<Map<String, String>> getRepoTree(String owner, String repo) {
+    public List<Map<String, String>> getRepoTree(String owner, String repo, String token) {
         /* getting repo details */
         String repoUrl = baseUrl + "/repos/" + owner + "/" + repo;
-        Map<String, Object> repoDetails = (Map<String, Object>) makeGetRequest(repoUrl);
+        Map<String, Object> repoDetails = (Map<String, Object>) makeGetRequest(repoUrl, token);
         String branch = (String) repoDetails.get("default_branch");
         /* get full tree */
         String treeUrl = baseUrl + "/repos/" + owner + "/" + repo + "/git/trees/" + branch + "?recursive=1";
-        Map<String, Object> treeResponse = (Map<String,Object>) makeGetRequest(treeUrl);
+        Map<String, Object> treeResponse = (Map<String,Object>) makeGetRequest(treeUrl, token);
         return extractRepoTree(treeResponse);
     }
 
-    public List<Map<String, String>> getRepoTreeBySHA(String owner, String repo, String sha) {
+    public List<Map<String, String>> getRepoTreeBySHA(String owner, String repo, String sha, String token) {
         String treeUrl = baseUrl + "/repos/" + owner + "/" + repo + "/git/trees/" + sha + "?recursive=1";
-        Map<String, Object> treeResponse = (Map<String,Object>) makeGetRequest(treeUrl);
+        Map<String, Object> treeResponse = (Map<String,Object>) makeGetRequest(treeUrl, token);
         return extractRepoTree(treeResponse);
     }
 
-    public String getFileContent(String owner, String repo, String path) {
+    public String getFileContent(String owner, String repo, String path, String token) {
         String url = baseUrl + "/repos/" + owner + "/" + repo + "/contents/" + path;
-        Map<String, Object> response = (Map<String, Object>) makeGetRequest(url);
+        Map<String, Object> response = (Map<String, Object>) makeGetRequest(url, token);
 
         String encoded = (String) response.get("content");
 
@@ -101,14 +101,14 @@ public class GithubClient {
         return new String(decodeBytes);
     }
 
-    public Object getIssue(String owner, String repo, int issueNumber) {
+    public Object getIssue(String owner, String repo, int issueNumber, String token) {
         String url = baseUrl + "/repos/" + owner + "/" + repo + "/issues/" + issueNumber;
-        return makeGetRequest(url);
+        return makeGetRequest(url, token);
     }
 
-    public String getLatestCommitSha(String owner, String repo) {
+    public String getLatestCommitSha(String owner, String repo, String token) {
         String url = baseUrl + "/repos/" + owner + "/" + repo + "/commits";
-        List<Map<String, Object>> commits = (List<Map<String, Object>>) makeGetRequest(url);
+        List<Map<String, Object>> commits = (List<Map<String, Object>>) makeGetRequest(url, token);
         if(commits.isEmpty()) return "";
         // commits are in descending order
         Map<String, Object> latestCommit = commits.getFirst();

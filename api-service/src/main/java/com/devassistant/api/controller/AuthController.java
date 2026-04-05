@@ -17,7 +17,7 @@ import java.time.Duration;
 import java.util.Objects;
 
 @RestController
-@RequestMapping("/auth")
+@RequestMapping("/api/auth")
 @RequiredArgsConstructor
 public class AuthController {
     @Value("${frontend.base-url}")
@@ -38,6 +38,7 @@ public class AuthController {
     public void callback(@RequestParam String code, @RequestParam String state, HttpServletResponse response) throws IOException {
         String jwt = authService.handleCallback(code, state);
         boolean secure = env.equals("prod");
+        System.out.println("Environment: " + env);
         ResponseCookie cookie = ResponseCookie.from("auth_token", jwt)
                 .httpOnly(true)
                 .secure(secure)

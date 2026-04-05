@@ -1,9 +1,13 @@
 package com.devassistant.api.client;
 
+import com.devassistant.api.dto.ReviewPipelineRequest;
+import com.devassistant.api.dto.StartPipelineRequest;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.web.reactive.function.client.WebClient;
-
+import org.springframework.web.servlet.mvc.method.annotation.StreamingResponseBody;
+import org.springframework.core.io.buffer.DataBuffer;
+import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 
@@ -60,5 +64,49 @@ public class AIClient {
                 .block();
 
         return response.get("analysis");
+    }
+
+    public Map<String, String> startPipeline(StartPipelineRequest req) {
+        return webClient.post()
+                .uri("/v2/start")
+                .header("X-internal-Secret", "dfnfndsfs")
+                .bodyValue(req)
+                .retrieve()
+                .bodyToMono(Map.class)
+                .block();
+    }
+
+    public Map<String, String> review(ReviewPipelineRequest req) {
+        return webClient.post()
+                .uri("/v2/review")
+                .header("X-internal-Secret", "dfnfndsfs")
+                .bodyValue(req)
+                .retrieve()
+                .bodyToMono(Map.class)
+                .block();
+    }
+
+    public StreamingResponseBody stream(String threadId) {
+        return outputStream -> {
+            webClient.get()
+                    .uri(uriBuilder -> uriBuilder
+                            .path("/v2/stream")
+                            .queryParam("thread_id", threadId)
+                            .build())
+                    .header("X-internal-Secret", "dfnfndsfs")
+                    .retrieve()
+                    .bodyToFlux(DataBuffer.class)
+                    .doOnNext(dataBuffer -> {
+                        try {
+                            byte[] bytes = new byte[dataBuffer.readableByteCount()];
+                            dataBuffer.read(bytes);
+                            outputStream.write(bytes);
+                            outputStream.flush();
+                        } catch (IOException e) {
+                            throw new RuntimeException(e);
+                        }
+                    })
+                    .blockLast();
+        };
     }
 }

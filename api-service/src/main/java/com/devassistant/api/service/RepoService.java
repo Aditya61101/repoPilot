@@ -1,5 +1,6 @@
 package com.devassistant.api.service;
 
+import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 
 import java.util.*;
@@ -10,10 +11,12 @@ import com.devassistant.api.client.AIClient;
 import com.devassistant.api.integration.GithubClient;
 
 @Service
+@RequiredArgsConstructor
 public class RepoService {
     private final GithubClient githubClient;
     private final ExecutorService githubExecutor;
     private final AIClient aiClient;
+    private final AuthService authService;
 
     private static final Set<String> BLOCKED_EXTENSIONS = Set.of(
             ".png",".jpg",".jpeg",".gif",".webp",".ico",".svg",
@@ -25,17 +28,7 @@ public class RepoService {
     private static final List<String> BLOCKED_DIRS = List.of(
             "/node_modules/", "/dist/",  "/build/", "/coverage/", "/target/",  "/bin/",
             "/obj/", "/.git/",  "/venv/", "/.venv/",  "/__pycache__/");
-
-    public RepoService(
-            GithubClient githubClient,
-            AIClient aiClient,
-            ExecutorService githubExecutor
-    ) {
-        this.githubClient = githubClient;
-        this.githubExecutor = githubExecutor;
-        this.aiClient = aiClient;
-    }
-
+    
     private boolean shouldIndex(String path) {
         String lower = path.toLowerCase();
         for(String dir:BLOCKED_DIRS) {
@@ -49,8 +42,9 @@ public class RepoService {
         return !lower.endsWith("package-lock.json") && !lower.endsWith("yarn.lock") && !lower.endsWith("pnpm-lock.yaml");
     }
 
-    public List<Map<String, String>> getAllFileData(String owner, String repo, String sha) {
-        List<Map<String, String>> tree = githubClient.getRepoTreeBySHA(owner, repo, sha);
+    public List<Map<String, String>> getAllFileData(String owner, String repo, String sha, Long userId) {
+        String token = authService.getGithubToken(userId);
+        List<Map<String, String>> tree = githubClient.getRepoTreeBySHA(owner, repo, sha, token);
 
         List<String> paths = tree.stream()
                 .filter(n -> "file".equals(n.get("type")))
@@ -61,7 +55,7 @@ public class RepoService {
         List<CompletableFuture<Map<String, String>>> futures = paths.stream()
                 .map(path -> CompletableFuture.supplyAsync(() -> {
                     try {
-                        String content = githubClient.getFileContent(owner, repo, path);
+                        String content = githubClient.getFileContent(owner, repo, path, token);
                         Map<String, String> fileData = new HashMap<>();
                         fileData.put("path", path);
                         fileData.put("content", content);
@@ -79,21 +73,25 @@ public class RepoService {
                 .toList();
     }
 
-    public List<Map<String,String>> getRepos(String owner) {
-        List<Map<String,Object>> repos = (List<Map<String,Object>>) githubClient.getRepos(owner);
+    public List<Map<String,String>> getRepos(Long userId) {
+        String token = authService.getGithubToken(userId);
+        List<Map<String,Object>> repos = (List<Map<String,Object>>) githubClient.getRepos(token);
         List<Map<String,String>> repoFinalResponse = new ArrayList<>();
         for(Map<String, Object> repo:repos) {
             Map<String, String> map = new HashMap<>();
             map.put("name", String.valueOf(repo.get("name")));
             map.put("id", String.valueOf(repo.get("id")));
+            Map<String, Object> owner = (Map<String, Object>) repo.get("owner");
+            map.put("owner", String.valueOf(owner.get("login")));
             repoFinalResponse.add(map);
         }
         return repoFinalResponse;
     }
 
-    public Map<String,Object> getIssues(String owner, String repo) {
-        List<Map<String,Object>> issues = (List<Map<String,Object>>) githubClient.getIssues(owner, repo);
-        String sha = githubClient.getLatestCommitSha(owner, repo);
+    public Map<String,Object> getIssues(String owner, String repo, Long userId) {
+        String token = authService.getGithubToken(userId);
+        List<Map<String,Object>> issues = (List<Map<String,Object>>) githubClient.getIssues(owner, repo, token);
+        String sha = githubClient.getLatestCommitSha(owner, repo, token);
 
         List<Map<String,Object>> issuesFinalResponse = new ArrayList<>();
         for(Map<String, Object> issue: issues) {
@@ -125,46 +123,55 @@ public class RepoService {
         return response;
     }
 
-    public Object getFiles(String owner, String repo) { return githubClient.getFiles(owner, repo); }
-
-    public List<Map<String, String>> getRepoTree(String owner, String repo) { return githubClient.getRepoTree(owner, repo); }
-
-    public String getFileContent(String owner, String repo, String path) { return githubClient.getFileContent(owner, repo, path); }
-
-    public Map<String, Object> analyzeIssue(String owner, String repo, int issueNumber) {
-        System.out.println("inside analyze issues service");
-        String repoKey = owner + "/" + repo;
-        // Step 1: get commit SHA for given Repo
-        String sha = githubClient.getLatestCommitSha(owner, repo);
-        if(sha.isEmpty()) return Map.of(
-                "error", "No commits found"
-        );
-        // step 2: send ai-service repoKey(owner, repo), commit SHA to check whether embedding exists or not
-        boolean needsIndex = aiClient.ensureIndexed(repoKey, sha);
-        // step 3: if it doesn't exist(need_indexing=True) then we fetch file paths and content and send it to ai-service for indexing
-        if(needsIndex) {
-            System.out.println("extracting all files content...");
-            List<Map<String, String>> allFiles = getAllFileData(owner, repo, sha);
-            System.out.println("all files content extracted...");
-            Map<String,Object> response = (Map<String,Object>) aiClient.indexRepo(repoKey, sha, allFiles);
-            System.out.println("response from indexing repo: "+ response.get("message"));
-            if(!(Boolean)(response.get("status"))) return Map.of(
-                    "error", "Internal Server Error"
-            );
-        }
-        // step 4: after indexing, we again call ai-service for analysis
-        Map<String, Object> issue = (Map<String, Object>) githubClient.getIssue(owner, repo, issueNumber);
-        System.out.println("issue detail for " + issueNumber + " is: " + issue.get("title"));
-
-        String title = (String) issue.get("title");
-        String body = (String) issue.get("body");
-        String issueText = (title != null ? title : "") + " " + (body != null ? body : "");
-
-        Object analysis = aiClient.analyze(repoKey, issueText);
-        return Map.of(
-                "issue", issue,
-                "analysis", analysis
-        );
+    public Object getFiles(String owner, String repo, Long userId) {
+        String token = authService.getGithubToken(userId);
+        return githubClient.getFiles(owner, repo, token); 
     }
+
+    public List<Map<String, String>> getRepoTree(String owner, String repo, Long userId) {
+        String token = authService.getGithubToken(userId);
+        return githubClient.getRepoTree(owner, repo, token); 
+    }
+
+    public String getFileContent(String owner, String repo, String path, Long userId) {
+        String token = authService.getGithubToken(userId);
+        return githubClient.getFileContent(owner, repo, path, token); 
+    }
+
+//    public Map<String, Object> analyzeIssue(String owner, String repo, int issueNumber) {
+//        System.out.println("inside analyze issues service");
+//        String repoKey = owner + "/" + repo;
+//        // Step 1: get commit SHA for given Repo
+//        String sha = githubClient.getLatestCommitSha(owner, repo);
+//        if(sha.isEmpty()) return Map.of(
+//                "error", "No commits found"
+//        );
+//        // step 2: send ai-service repoKey(owner, repo), commit SHA to check whether embedding exists or not
+//        boolean needsIndex = aiClient.ensureIndexed(repoKey, sha);
+//        // step 3: if it doesn't exist(need_indexing=True) then we fetch file paths and content and send it to ai-service for indexing
+//        if(needsIndex) {
+//            System.out.println("extracting all files content...");
+//            List<Map<String, String>> allFiles = getAllFileData(owner, repo, sha);
+//            System.out.println("all files content extracted...");
+//            Map<String,Object> response = (Map<String,Object>) aiClient.indexRepo(repoKey, sha, allFiles);
+//            System.out.println("response from indexing repo: "+ response.get("message"));
+//            if(!(Boolean)(response.get("status"))) return Map.of(
+//                    "error", "Internal Server Error"
+//            );
+//        }
+//        // step 4: after indexing, we again call ai-service for analysis
+//        Map<String, Object> issue = (Map<String, Object>) githubClient.getIssue(owner, repo, issueNumber);
+//        System.out.println("issue detail for " + issueNumber + " is: " + issue.get("title"));
+//
+//        String title = (String) issue.get("title");
+//        String body = (String) issue.get("body");
+//        String issueText = (title != null ? title : "") + " " + (body != null ? body : "");
+//
+//        Object analysis = aiClient.analyze(repoKey, issueText);
+//        return Map.of(
+//                "issue", issue,
+//                "analysis", analysis
+//        );
+//    }
 
 }

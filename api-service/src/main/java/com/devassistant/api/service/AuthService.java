@@ -72,6 +72,7 @@ public class AuthService {
 
         if(existing.isPresent()) {
             User existingUser = existing.get();
+            // updating the github_token with the new token came in exchange with the code.
             existingUser.setAccessToken(token);
             return userRepository.save(existingUser);
         }
@@ -129,5 +130,10 @@ public class AuthService {
                 user.getUsername(),
                 user.getGithubId()
         );
+    }
+
+    public String getGithubToken(Long userId) {
+        User user = userRepository.findById(userId).orElseThrow(() -> new RuntimeException("User not found"));
+        return user.getAccessToken();
     }
 }
