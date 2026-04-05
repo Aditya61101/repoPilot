@@ -14,4 +14,5 @@ export interface Issue {
 export interface Repo {
     id: string;
     name: string;
+    owner: string;
 }

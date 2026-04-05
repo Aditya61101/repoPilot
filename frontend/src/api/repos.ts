@@ -1,6 +1,5 @@
-import { apiClient } from "./apiClient";
+import { protectedApiClient } from "./client";
 
-export const fetchRepos = async (username:string) => {
-    const res = await apiClient.get(`/repos?owner=${username}`);
-    return res.data;
+export const fetchRepos = async () => {
+    return await protectedApiClient.get(`/repos/`);
 }

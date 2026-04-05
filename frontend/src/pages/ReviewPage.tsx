@@ -1,40 +1,14 @@
-/* eslint-disable @typescript-eslint/no-unused-vars */
 import React, { useState, useMemo, useCallback, Suspense } from 'react'
-import { ChevronDown, ArrowLeft, CheckCircle2, AlertCircle, GitPullRequest } from 'lucide-react'
+import { ChevronDown, ArrowLeft, GitPullRequest } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Textarea } from '@/components/ui/textarea'
 import { cn } from '@/lib/utils'
 import { useNavigate, useSearchParams } from 'react-router'
-import type { FileDiff, FileReview, PageState, PipelineNode, SSEEvent } from '@/interfaces/Review'
+import type { FileDiff, FileReview, PageState, SSEEvent } from '@/interfaces/Review'
 import { useSSEStream } from '@/hooks/useSSEStream'
 import { ThemeToggle } from '@/components/shared/ThemeToggle'
-import { aiClient } from '@/api/aiClient'
-import { submitReview } from '@/api/aiPipeline'
+import { submitReview } from '@/api/pipeline'
 
-// Mock data
-const INITIAL_NODES: PipelineNode[] = [
-    { name: 'chk_idx', status: 'complete' },
-    { name: 'analyze', status: 'complete' },
-    { name: 'plan', status: 'complete' },
-    { name: 'generate', status: 'complete' },
-    { name: 'diff', status: 'complete' },
-    { name: 'review', status: 'running' },
-]
-
-const MOCK_FILE_DIFFS: FileDiff[] = [
-    {
-        file: 'client/src/routes/dashboard/code/page.tsx',
-        language: 'typescript',
-        original: "/* eslint-disable @typescript-eslint/no-explicit-any */\nimport { useState } from \"react\";\nimport { Heading } from \"@/components/dashboard/heading\";\nimport { Loader } from \"@/components/dashboard/loader\";\nimport { UserAvatar } from \"@/components/dashboard/userAvatar\";\nimport { BotAvatar } from \"@/components/dashboard/botAvatar\";\nimport Empty from \"@/components/dashboard/empty\";\nimport { Button } from \"@/components/ui/button\";\nimport { Form, FormControl, FormField, FormItem } from \"@/components/ui/form\";\nimport { Input } from \"@/components/ui/input\";\nimport { MessageSquare } from \"lucide-react\";\nimport { zodResolver } from \"@hookform/resolvers/zod\";\nimport * as z from \"zod\";\nimport { useForm } from \"react-hook-form\";\nimport { cn } from \"@/lib/utils\";\nimport { ChatCompletionUserMessageParam } from 'openai/resources/chat/index.mjs';\nimport { openModal } from \"@/store/reducers/modalReducer\";\nimport toast from \"react-hot-toast\";\nimport { useDispatch } from \"react-redux\";\nimport { useQueryClient } from \"@tanstack/react-query\";\nimport { useUser } from \"@clerk/clerk-react\";\nimport { apiCall } from \"@/lib/axios\";\n\nconst Conversation = () => {\n  const { user } = useUser();\n  const queryClient = useQueryClient();\n  const dispatch = useDispatch();\n  const [messages, setMessages] = useState<ChatCompletionUserMessageParam[]>([]);\n\n  const formSchema = z.object({\n    prompt: z.string().min(1, {\n      message: \"Prompt is required.\"\n    }),\n  });\n  const form = useForm<z.infer<typeof formSchema>>({\n    resolver: zodResolver(formSchema),\n    defaultValues: {\n      prompt: \"\"\n    }\n  });\n\n  const isLoading = form.formState.isSubmitting;\n\n  const onSubmit = async (values: z.infer<typeof formSchema>) => {\n    try {\n      const userMessage: ChatCompletionUserMessageParam = { role: \"user\", content: values.prompt };\n      const newMessages = [...messages, userMessage];\n\n      const api = apiCall(user);\n      const response = await api.post(\"conversation\", { messages: newMessages });\n      setMessages((current) => [...current, userMessage, response.data]);\n\n      queryClient.invalidateQueries({ queryKey: ['user-status'] });\n      form.reset();\n    } catch (error: any) {\n      console.error('error', error);\n      if (error?.response?.status === 403) {\n        dispatch(openModal());\n      } else {\n        toast.error(\"Something went wrong.\");\n      }\n    }\n  }\n\n  return (\n    <div>\n      <Heading\n        title=\"Conversation\"\n        description=\"Our most advanced conversation model!\"\n        icon={MessageSquare}\n        iconColor=\"text-violet-500\"\n        bgColor=\"bg-violet-500/10\"\n      />\n      <div className=\"px-4 lg:px-8\">\n        <div>\n          <Form {...form}>\n            <form\n              onSubmit={form.handleSubmit(onSubmit)}\n              className=\"\n                border \n                rounded-lg\n                w-full \n                p-4 \n                px-3 \n                md:px-6 \n                focus-within:shadow-sm\n                grid\n                grid-cols-12\n                gap-2\n              \"\n            >\n              <FormField\n                name=\"prompt\"\n                render={({ field }) => (\n                  <FormItem className=\"col-span-12 lg:col-span-10\">\n                    <FormControl className=\"m-0 p-0\">\n                      <Input\n                        className=\"border-0 outline-none focus-visible:ring-0 focus-visible:ring-transparent\"\n                        disabled={isLoading}\n                        placeholder=\"How do I calculate the radius of a circle?\"\n                        {...field}\n                      />\n                    </FormControl>\n                  </FormItem>\n                )}\n              />\n              <Button className=\"col-span-12 lg:col-span-2 w-full\" type=\"submit\" disabled={isLoading} size=\"icon\">\n                Generate\n              </Button>\n            </form>\n          </Form>\n        </div>\n        <div className=\"space-y-4 mt-4\">\n          {isLoading && (\n            <div className=\"p-8 rounded-lg w-full flex items-center justify-center bg-muted\">\n              <Loader />\n            </div>\n          )}\n          {messages.length === 0 && !isLoading && (\n            <Empty label=\"No conversation started.\" />\n          )}\n          <div className=\"flex flex-col-reverse gap-y-4\">\n            {messages.map((message, index) => (\n              <div\n                key={index}\n                className={cn(\n                  \"p-8 w-full flex items-start gap-x-8 rounded-lg\",\n                  message.role === \"user\" ? \"border\" : \"bg-muted\",\n                )}\n              >\n                {message.role === \"user\" ? <UserAvatar /> : <BotAvatar />}\n                {Array.isArray(message.content)\n                  ? message.content.map((part, idx) => {\n                    if (\"text\" in part) {\n                      return <span key={idx}>{part.text}</span>\n                    } else {\n                      return null;\n                    }\n                  })\n                  : <p className=\"text-sm\">{message.content}</p>\n                }\n              </div>\n            ))}\n          </div>\n        </div>\n      </div>\n    </div>\n  );\n\n}\n\nexport default Conversation;",
-        modified: "/* eslint-disable @typescript-eslint/no-explicit-any */\nimport { useState } from \"react\";\nimport { Heading } from \"@/components/dashboard/heading\";\nimport { Loader } from \"@/components/dashboard/loader\";\nimport { UserAvatar } from \"@/components/dashboard/userAvatar\";\nimport { BotAvatar } from \"@/components/dashboard/botAvatar\";\nimport Empty from \"@/components/dashboard/empty\";\nimport { Button } from \"@/components/ui/button\";\nimport { Form, FormControl, FormField, FormItem } from \"@/components/ui/form\";\nimport { Input } from \"@/components/ui/input\";\nimport { MessageSquare } from \"lucide-react\";\nimport { zodResolver } from \"@hookform/resolvers/zod\";\nimport * as z from \"zod\";\nimport { useForm } from \"react-hook-form\";\nimport { cn } from \"@/lib/utils\";\nimport { ChatCompletionUserMessageParam } from 'openai/resources/chat/index.mjs';\nimport { openModal } from \"@/store/reducers/modalReducer\";\nimport toast from \"react-hot-toast\";\nimport { useDispatch } from \"react-redux\";\nimport { useQueryClient } from \"@tanstack/react-query\";\nimport { useUser } from \"@clerk/clerk-react\";\nimport { apiCall } from \"@/lib/axios\";\n\nconst Conversation = () => {\n  const { user } = useUser();\n  const queryClient = useQueryClient();\n  const dispatch = useDispatch();\n  const [messages, setMessages] = useState<ChatCompletionUserMessageParam[]>([]);\n\n  const formSchema = z.object({\n    prompt: z.string().min(1, {\n      message: \"Prompt is required.\"\n    }),\n  });\n  const form = useForm<z.infer<typeof formSchema>>({\n    resolver: zodResolver(formSchema),\n    defaultValues: {\n      prompt: \"\"\n    }\n  });\n\n  const isLoading = form.formState.isSubmitting;\n\nconst onSubmit = async (values: z.infer<typeof formSchema>) => {\n\n  try {\n\n    const userMessage: ChatCompletionUserMessageParam = { role: \"user\", content: values.prompt };\n\n    const newMessages = [...messages, userMessage];\n\n\n\n    const api = apiCall(user);\n\n    const response = await api.post(\"conversation\", { messages: newMessages }, {\n\n      responseType: 'stream'\n\n    });\n\n\n\n    const reader = response.data.getReader();\n\n    const decoder = new TextDecoder(\"utf-8\");\n\n\n\n    let botMessage = { role: \"bot\", content: \"\" };\n\n    setMessages((current) => [...current, userMessage, botMessage]);\n\n\n\n    const processStream = async () => {\n\n      while (true) {\n\n        const { done, value } = await reader.read();\n\n        if (done) break;\n\n        const chunk = decoder.decode(value, { stream: true });\n\n        botMessage.content += chunk;\n\n        setMessages((current) => {\n\n          const updatedMessages = [...current];\n\n          updatedMessages[updatedMessages.length - 1] = botMessage;\n\n          return updatedMessages;\n\n        });\n\n      }\n\n    };\n\n\n\n    await processStream();\n\n\n\n    queryClient.invalidateQueries({ queryKey: ['user-status'] });\n\n    form.reset();\n\n  } catch (error: any) {\n\n    console.error('error', error);\n\n    if (error?.response?.status === 403) {\n\n      dispatch(openModal());\n\n    } else {\n\n      toast.error(\"Something went wrong.\");\n\n    }\n\n  }\n\n}\n\n  return (\n    <div>\n      <Heading\n        title=\"Conversation\"\n        description=\"Our most advanced conversation model!\"\n        icon={MessageSquare}\n        iconColor=\"text-violet-500\"\n        bgColor=\"bg-violet-500/10\"\n      />\n      <div className=\"px-4 lg:px-8\">\n        <div>\n          <Form {...form}>\n            <form\n              onSubmit={form.handleSubmit(onSubmit)}\n              className=\"\n                border \n                rounded-lg\n                w-full \n                p-4 \n                px-3 \n                md:px-6 \n                focus-within:shadow-sm\n                grid\n                grid-cols-12\n                gap-2\n              \"\n            >\n              <FormField\n                name=\"prompt\"\n                render={({ field }) => (\n                  <FormItem className=\"col-span-12 lg:col-span-10\">\n                    <FormControl className=\"m-0 p-0\">\n                      <Input\n                        className=\"border-0 outline-none focus-visible:ring-0 focus-visible:ring-transparent\"\n                        disabled={isLoading}\n                        placeholder=\"How do I calculate the radius of a circle?\"\n                        {...field}\n                      />\n                    </FormControl>\n                  </FormItem>\n                )}\n              />\n              <Button className=\"col-span-12 lg:col-span-2 w-full\" type=\"submit\" disabled={isLoading} size=\"icon\">\n                Generate\n              </Button>\n            </form>\n          </Form>\n        </div>\n        <div className=\"space-y-4 mt-4\">\n          {isLoading && (\n            <div className=\"p-8 rounded-lg w-full flex items-center justify-center bg-muted\">\n              <Loader />\n            </div>\n          )}\n          {messages.length === 0 && !isLoading && (\n            <Empty label=\"No conversation started.\" />\n          )}\n          <div className=\"flex flex-col-reverse gap-y-4\">\n            {messages.map((message, index) => (\n              <div\n                key={index}\n                className={cn(\n                  \"p-8 w-full flex items-start gap-x-8 rounded-lg\",\n                  message.role === \"user\" ? \"border\" : \"bg-muted\",\n                )}\n              >\n                {message.role === \"user\" ? <UserAvatar /> : <BotAvatar />}\n                {Array.isArray(message.content)\n                  ? message.content.map((part, idx) => {\n                    if (\"text\" in part) {\n                      return <span key={idx}>{part.text}</span>\n                    } else {\n                      return null;\n                    }\n                  })\n                  : <p className=\"text-sm\">{message.content}</p>\n                }\n              </div>\n            ))}\n          </div>\n        </div>\n      </div>\n    </div>\n  );\n\n}\n\nexport default Conversation;",
-    },
-    {
-        file: 'client/src/lib/axios.ts',
-        language: 'typescript',
-        original: 'timeout: 3000',
-        modified: 'timeout: 5000',
-    },
-]
 
 function ReviewHeader({ pageState, issueTitle }: { pageState: PageState; issueTitle: string }) {
     const isRunning = pageState === 'running' || pageState === 'resuming'
@@ -62,12 +36,12 @@ function ReviewHeader({ pageState, issueTitle }: { pageState: PageState; issueTi
                     )}
                 />
             </div>
-            <ThemeToggle />
+            <ThemeToggle/>
         </header>
     )
 }
 
-function StatusPulse({ message, state }: { message: string, state: PageState }) {
+function StatusPulse({ message }: { message: string }) {
     return (
         <div className="flex flex-col items-center justify-center gap-3 w-full">
             <div className="w-3 h-3 bg-primary rounded-full animate-pulse" />
@@ -102,18 +76,18 @@ function DiffFileBlock({
     const isRejected = fileReview?.approved === false
 
     const LazyDiffEditor = React.lazy(() => import('@monaco-editor/react').then(module => ({ default: module.DiffEditor })));
-
+    
     return (
         <div
             className={cn(
-                'border border-border rounded-lg  transition-colors',
+                'border border-border rounded-lg overflow-hidden transition-colors',
                 isAccepted && 'border-l-4 border-l-green-500',
                 isRejected && 'border-l-4 border-l-destructive'
             )}
         >
-            <button
+            <Button
                 onClick={() => setIsExpanded(!isExpanded)}
-                className="w-full px-4 py-3 flex items-center justify-between hover:bg-muted hover:cursor-pointer transition-colors"
+                className="w-full px-4 py-3 flex items-center justify-between hover:bg-muted transition-colors"
             >
                 <div className="flex items-center gap-2 min-w-0">
                     <span className="text-lg">📄</span>
@@ -124,10 +98,11 @@ function DiffFileBlock({
                 <ChevronDown
                     className={cn('w-4 h-4 transition-transform shrink-0', isExpanded && 'rotate-180')}
                 />
-            </button>
+            </Button>
 
             {isExpanded && (
                 <div className="border-t border-border">
+                    <div className="bg-muted/50 p-4">
                     <Suspense fallback={<div className='animate-pulse text-muted-foreground'>Loading editor...</div>}>
                         <LazyDiffEditor
                             height={Math.min(500, Math.max(200, lineCount * 19 + 40))}
@@ -149,37 +124,38 @@ function DiffFileBlock({
                                 padding: { top: 8, bottom: 8 },
                             }}
                         />
-                        <div className="p-4 border-t border-border space-y-3">
-                            <Textarea
-                                placeholder="Any issues with this file? (optional)"
-                                value={fileReview?.feedback || ''}
-                                onChange={(e) => onReviewChange(e.target.value, isAccepted)}
-                                className="text-sm"
-                            />
-
-                            <div className="flex gap-2">
-                                <Button
-                                    variant={isRejected ? 'default' : 'outline'}
-                                    size="sm"
-                                    onClick={() => onReviewChange(fileReview?.feedback || '', false)}
-                                    className={cn(
-                                        isRejected && 'bg-destructive hover:bg-destructive/90 text-white border-destructive'
-                                    )}
-                                >
-                                    ✗ Reject file
-                                </Button>
-                                <Button
-                                    variant={isAccepted ? 'default' : 'outline'}
-                                    size="sm"
-                                    onClick={() => onReviewChange(fileReview?.feedback || '', true)}
-                                    className={cn(isAccepted && 'bg-primary hover:bg-primary/90 text-white')}
-                                >
-                                    ✓ Accept
-                                </Button>
-                            </div>
-                        </div>
                     </Suspense>
+                    </div>
 
+                    <div className="p-4 border-t border-border space-y-3">
+                        <Textarea
+                            placeholder="Any issues with this file? (optional)"
+                            value={fileReview?.feedback || ''}
+                            onChange={(e) => onReviewChange(e.target.value, isAccepted)}
+                            className="text-sm"
+                        />
+
+                        <div className="flex gap-2">
+                            <Button
+                                variant={isRejected ? 'default' : 'outline'}
+                                size="sm"
+                                onClick={() => onReviewChange(fileReview?.feedback || '', false)}
+                                className={cn(
+                                    isRejected && 'bg-destructive hover:bg-destructive/90 text-white border-destructive'
+                                )}
+                            >
+                                ✗ Reject file
+                            </Button>
+                            <Button
+                                variant={isAccepted ? 'default' : 'outline'}
+                                size="sm"
+                                onClick={() => onReviewChange(fileReview?.feedback || '', true)}
+                                className={cn(isAccepted && 'bg-primary hover:bg-primary/90 text-white')}
+                            >
+                                ✓ Accept
+                            </Button>
+                        </div>
+                    </div>
                 </div>
             )}
         </div>
@@ -234,8 +210,7 @@ function ReviewFooter({
 }
 
 function PROpenedCard({ prURL }: { prURL: string | null }) {
-    if(!prURL) return null;
-
+    if (!prURL) return null;
     return (
         <div className="flex-1 flex items-center justify-center p-6">
             <div className="max-w-md text-center space-y-4">
@@ -269,26 +244,15 @@ export default function ReviewPage() {
     const [pageState, setPageState] = useState<PageState>('running')
     const [prUrl, setPrUrl] = useState<string | null>(null)
     const [streamEnabled, setStreamEnabled] = useState(true)
-    const [fileDiffs, setFileDiffs] = useState<FileDiff[]>(MOCK_FILE_DIFFS)
+    const [fileDiffs, setFileDiffs] = useState<FileDiff[]>([])
     const [fileReviews, setFileReviews] = useState<Record<string, FileReview>>({})
     const [statusMessage, setStatusMessage] = useState('Starting pipeline...')
-    // const [nodes, setNodes] = useState<PipelineNode[]>(INITIAL_NODES)
 
     const handleSSEEvent = useCallback((event: SSEEvent) => {
         if (event.message) setStatusMessage(event.message)
         switch (event.type) {
             case 'node_running':
                 setPageState('running')
-                // mark node as complete in stepper
-                // setNodes((prev) =>
-                //     prev.map((n) =>
-                //         n.name === event.node
-                //             ? { ...n, status: 'complete' }
-                //             : n.status === 'pending'
-                //             ? { ...n, status: 'running' }  // next node starts
-                //             : n
-                //     )
-                // )
                 break
 
             case 'pending_review':
@@ -311,7 +275,6 @@ export default function ReviewPage() {
     const showDiff = pageState === 'pending_review'
     const showStatusPulse = pageState === 'running' || pageState === 'resuming'
     const showPROpened = pageState === 'complete' && prUrl
-    // const isSidebar = pageState === 'pending_review' || pageState === 'complete' || pageState === 'running'
 
     const handleSubmitReview = async () => {
         if (!threadId) return
@@ -336,7 +299,7 @@ export default function ReviewPage() {
     ) => {
         setFileReviews((prev) => ({
             ...prev,
-            [filename]: {file:filename, approved, feedback },
+            [filename]: { file: filename, approved, feedback },
         }))
     }
 
@@ -354,7 +317,7 @@ export default function ReviewPage() {
                             ? "opacity-100 pointer-events-auto"
                             : "opacity-0 pointer-events-none"
                     )}>
-                        <StatusPulse message={statusMessage} state={pageState} />
+                        <StatusPulse message={statusMessage} />
                     </div>
 
                     {/* DiffPanel — visible when pending_review */}

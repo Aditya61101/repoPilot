@@ -11,7 +11,7 @@ export function useSSEStream(
     useEffect(() => {
         if (!threadId || !enabled) return
 
-        const es = new EventSource(`http://localhost:8000/ai/v2/stream?thread_id=${encodeURIComponent(threadId)}`)
+        const es = new EventSource(`http://localhost:8000/api/pipeline/stream?thread_id=${encodeURIComponent(threadId)}`)
         esRef.current = es
 
         es.onmessage = (e) => {

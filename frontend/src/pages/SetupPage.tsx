@@ -11,31 +11,42 @@ import {
     SelectValue,
 } from '@/components/ui/select'
 import type { Issue, Repo } from "@/interfaces/Issue";
-import { LoaderCircle } from "lucide-react";
 import { fetchRepos } from "@/api/repos";
 import { fetchIssues } from "@/api/issues";
 import { ThemeToggle } from "@/components/shared/ThemeToggle";
 import { useNavigate } from "react-router";
-import { startPipeline } from "@/api/aiPipeline";
+import { startPipeline } from "@/api/pipeline";
+import { useQuery } from "@tanstack/react-query";
+import { useAuth } from "@/context/AuthContext";
 
 const SetupPage = () => {
+    const auth = useAuth();
+    
     // UI states
-    const [username, setUsername] = useState('');
     const [selectedRepoName, setSelectedRepoName] = useState<string | null>(null);
     const [searchQuery, setSearchQuery] = useState('');
     const [selectedIssueId, setSelectedIssueId] = useState<number | null>(null);
     // data states
-    const [repos, setRepos] = useState<Repo[] | null>(null);
+    // const [repos, setRepos] = useState<Repo[] | null>(null);
     const [issues, setIssues] = useState<Issue[] | null>(null);
     const [commitSHA, setCommitSHA] = useState<string>('');
     // loading states
-    const [isFetchingRepos, setIsFetchingRepos] = useState(false);
     const [isFetchingIssues, setIsFetchingIssues] = useState(false);
 
     const navigate = useNavigate();
 
+    const { isPending, data } = useQuery({
+        queryKey: ['repos'],
+        queryFn: () => fetchRepos().then((res) => res.data),
+    })
+
+    const selectedIssue:Issue | null = useMemo(() => {
+        if (!selectedIssueId) return null;
+        return issues?.find((i) => i.id === selectedIssueId) || null;
+    }, [selectedIssueId, issues]);
+
     const filteredIssues = useMemo(() => {
-        if(searchQuery.trim() === '') return issues || [];
+        if (searchQuery.trim() === '') return issues || [];
         setSelectedIssueId(null);
         return issues?.filter(
             (issue) =>
@@ -44,19 +55,22 @@ const SetupPage = () => {
         ) || [];
     }, [issues, searchQuery]);
 
-    const selectedIssue = useMemo(() => {
-        if (!selectedIssueId) return null;
-        return issues?.find((i) => i.id === selectedIssueId) || null;
-    }, [selectedIssueId, issues]);
+    if(!auth) return;
+    const { user, loading } = auth;
+    if(loading) return;
 
     const handleRepoChange = async (repoName: string) => {
         console.log("repo name: ", repoName);
-        setIsFetchingIssues(true);
         setSelectedIssueId(null);
         setIssues(null);
+        setIsFetchingIssues(true);
         setSelectedRepoName(repoName);
+        
+        const repo = data?.find((r: Repo) => r.name === repoName)
+        if (!repo) return;
+        
         try {
-            const response = await fetchIssues(username, repoName);
+            const response = await fetchIssues(repo.owner, repo.name);
             console.log("fetched issues: ", response);
             setIssues(response.issues);
             setCommitSHA(response.commitSHA);
@@ -67,27 +81,17 @@ const SetupPage = () => {
         }
     };
 
-    const fetchReposForUser = async () => {
-        setIsFetchingRepos(true);
-        setRepos(null);
-        try {
-            const fetchedRepos = await fetchRepos(username);
-            setRepos(fetchedRepos);
-        } catch (e) {
-            console.error("Error fetching repos: ", e);
-        } finally {
-            setIsFetchingRepos(false);
-        }
-    }
-
     const handleStartPipeline = async () => {
         if (!selectedRepoName || !selectedIssue) return;
 
         console.log("selected issue: ", selectedIssue);
         const issueDetails = selectedIssue.body ? `${selectedIssue.title}: ${selectedIssue.body}` : selectedIssue.title;
-        
+
+        const repo = data?.find((r: Repo) => r.name === selectedRepoName);
+        if (!repo) return;
+
         const payload = {
-            "repo_key": `${username}/${selectedRepoName}`,
+            "repo_key": `${repo.owner}/${repo.name}`,
             "commit_sha": commitSHA,
             "issue": issueDetails,
         }
@@ -97,7 +101,6 @@ const SetupPage = () => {
             await navigate(`/review?thread_id=${response.thread_id}&issue=${encodeURIComponent(selectedIssue.title)}`);
         } catch (error) {
             console.error('error while posting ', error);
-            
         }
 
     }
@@ -114,29 +117,11 @@ const SetupPage = () => {
                     </div>
                     <ThemeToggle />
                 </div>
-                {/* Username Input + Fetch Repos */}
-                <div className="flex gap-3 mb-6">
-                    <Input
-                        id="username"
-                        type="text"
-                        placeholder="Enter your GitHub username"
-                        value={username}
-                        onChange={(e) => setUsername(e.target.value)}
-                        className="flex-1 font-mono"
-                    />
-                    <Button
-                        onClick={fetchReposForUser}
-                        disabled={!username.trim()}
-                        className="bg-primary hover:bg-primary/90 min-w-30"
-                    >
-                        {isFetchingRepos ? <LoaderCircle className='animate-spin' /> : <span> Fetch Repos </span>}
-                    </Button>
-                </div>
 
-                {!repos ? (
+                {!data ? (
                     <div className="flex items-center justify-center h-96">
-                        {isFetchingRepos
-                            ? <span className="animate-pulse text-muted-foreground font-mono">Fetching repos for {username}...</span>
+                        {isPending
+                            ? <span className="animate-pulse text-muted-foreground font-mono">Fetching repos for {user?.username}...</span>
                             : <span>Enter a username to load repositories</span>
                         }
                     </div>
@@ -151,7 +136,7 @@ const SetupPage = () => {
                                     <SelectValue placeholder="Select a repository" />
                                 </SelectTrigger>
                                 <SelectContent>
-                                    {repos.map((repo: Repo) => (
+                                    {data.map((repo: Repo) => (
                                         <SelectItem key={repo.id} value={repo.name} className="font-mono">
                                             {repo.name}
                                         </SelectItem>
